@@ -478,12 +478,12 @@ my $MD5CollectorScriptBase = <<'COLLECTOR_SCRIPT';
 #!/usr/bin/perl
 use strict;
 my $TrailTag 		= "TRAIL_TAG";
-my $WDir			= "WD_TAG";
+my $WDir		= "WD_TAG";
 my $NFilesExpected 	= "NFILES_TAG";
 my $OutputIndexFile	= "INDEXFILE_TAG";
 
 #We derive this:
-my $CompleteFile = "$OutputIndexFile.complete"; 
+my $CompleteFile = "$OutputIndexFile.completed"; 
 
 my $CollectorCommand = 
 "cat $WDir\/MD5_working/*.md5.$TrailTag >> $OutputIndexFile";
@@ -953,7 +953,7 @@ my $SGEScript = $SGEScriptBase;					#Take a copy of the 'Base'
 $SGEScript =~s /FILELIST_TAG/$RealFiles/;
 $SGEScript =~s /WD_TAG/$OutputDir/;
 $SGEScript =~s /MD5OUT_TAG/$MD5ResultsDir/;
-$SGEScript =~s /BLOCKSIZE_TAG/$NBlocks_RF/;
+$SGEScript =~s /BLOCKSIZE_TAG/$BlockSize_RF/;
 $SGEScript =~s /NBLOCKS_TAG/$NBlocks_RF/;
 
 
@@ -1005,7 +1005,7 @@ Which should match what we passed here:
  #$ -N MD5_Tape_TIME_TAG
 =cut
 	print "# Launch General MD5sum QSub request:\n";
-	my $SGEResult= `qsub -q spbcrypto $QSUBScript 2>&1`; # Prep the qsub command & launch it
+	my $SGEResult= `qsub -q spbcrypto $QSUBScript`; # 2>&1`; # Prep the qsub command & launch it
 	$SGEResult =~ s/[\n\s]+$//g;	$SGEResult =~ s/[\r\n]/\n#:  /g;
 	
 	print "# SGE QSub launch result was:'$SGEResult'\n";
@@ -1098,7 +1098,7 @@ if ($ActiveLinks >0)
 	my $time = time;
 	$SGEScript =~s /TIME_TAG/$time/;
 	my $JobName_ALS = "IND_$TrailTag\_$time";
-	$SGEScript =~s /JOBNAME_TAG/$JobName/;
+	$SGEScript =~s /JOBNAME_TAG/$JobName_ALS/;
 	
 	#If you want this into the STDOUT 'log', then enable this next line (otherwise look in the file referenced) 
 	#my $PrettyFormattedSGEScript = $SGEScript; $PrettyFormattedSGEScript =~ s/[\r\n]/\n#:  /g; print $PrettyFormattedSGEScript; 
@@ -1108,7 +1108,7 @@ if ($ActiveLinks >0)
 	print "# Will be run with the job name: '$JobName_ALS'\n";
 
 	$JSON_Struct{"Paths"}{"MD5 Script Files"}{"ALS Script"}	= $ActiveLinksQSubScriptFile;	
-	$JSON_Struct{"ALS Job"}{"Job Name"}						= $JobName_ALS;
+	$JSON_Struct{"ALS Job"}{"Job Name"}			= $JobName_ALS;
 
 	#Write this out to disk:
 
@@ -1143,7 +1143,7 @@ Which should match what we passed here:
 		print "# 4) MD5sum Collector QSub job for acitve symlinked files (ALS):\n";
 
 		my $MD5CollectorScriptALS = $MD5CollectorScriptBase;
-	#Substitute these in:
+                #Substitute these in:
 		$MD5CollectorScriptALS =~s /TRAIL_TAG/$TrailTag/g;	#ALS= Active Symlinks
 		$MD5CollectorScriptALS =~s /WD_TAG/$OutputDir/g;
 		$MD5CollectorScriptALS =~s /NFILES_TAG/$ActiveLinks/g;
@@ -1161,7 +1161,7 @@ Which should match what we passed here:
 
 
 	my $MD5CollectorCommandALS= 
-	"qsub -q spbcrypto -hold_jid $JobName -N MD5_COL_$TrailTag\_$time -b y -S /bin/bash \"$IndexCollectorScriptALS\"";
+	"qsub -q spbcrypto -hold_jid $JobName_ALS -N MD5_COL_$TrailTag\_$time -b y -S /bin/bash \"$IndexCollectorScriptALS\"";
 	
 	print "#: MD5 Collector Command: \n# : '$MD5CollectorCommandALS'\n";
 	#Launch the Qsub job:
@@ -1172,7 +1172,7 @@ Which should match what we passed here:
 	print "# If all that worked then the file: '$IndexFileALS.completed' should have been created\n";
 
 	
-	#Take a copy and substitute in the path: this scritpt is so short & simple we don't even write it to a file:
+	#Take a copy and substitute in the path: this script is so short & simple we don't even write it to a file:
 #		my $MD5CollectorScriptAL = $MD5CollectorScriptBase;
 #		$MD5CollectorScriptAL =~s /WD_TAG/$OutputDir/g;
 #		$MD5CollectorScriptAL =~s /TRAIL_TAG/$TrailTag/g;	#ASL = Active Symlinks
