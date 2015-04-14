@@ -235,7 +235,10 @@ use File::Temp qw/ tempfile tempdir /;
 
 #The constants / programmable servicable parts:
 
-my $OutputDir = "/u/mmoorhouse/tickets/tapeArchiveSPB_2983/blockRunner/output";
+my $OutputDir = `pwd`;
+chomp($OutputDir);
+$OutputDir.="/output";
+# "$HOME/Data/tapeArchiving/blockRunner/output";
 
 my $MAX_JOB_LIMIT 	= 20000;		#This is actually 75 000, but we force 
 my $NODES_TO_USE	= 100;			#SPB Crypto has ~110 at time of writing 	
@@ -416,6 +419,8 @@ while (<$RAW_INDEXFILE_FH>)
 	my $Line=	"-"x32 .
 				"\t".
 				$PathName.
+                                "\t".
+                                (-s $PathName).
 				"\n";
 	print $INDEXFILE_FH $Line; 	#Bubble over the new details, nicely formatted
 

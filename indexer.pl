@@ -328,7 +328,7 @@ my %JSON_Struct;		#Ultimately we dump this as a JSON output, upon success of the
 my $MAX_JOB_LIMT 	= 	75000;	#Maximum number of jobs available to us 
 my $MAXNJOBSPERNODE	=	10;		#Maximum number of jobs we will ask each node to do as part of a job
 #For testing: stupidly small:
-$MAX_JOB_LIMT =10;
+#$MAX_JOB_LIMT =10;
 
 =head3 Create the skeleton SGE Script in this next section
 

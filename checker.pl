@@ -196,10 +196,11 @@ COLLECTOR_SCRIPT
 
 =cut
 my $GPGJSON; #To store the results of the GPG encrpytion process 
-
+my $MD5summedIndex; #Custom location of MD5 Summed list of files (SGEcaller.pl makes Files.index, indexer.pl makes Files.md5.RF
 GetOptions (
 	"EncDir|encryptedDir|basedir|outdir=s" => \$BaseDirForEncFiles,
 	"noSGEOK|nogrid" => \$SkipSGECheck,
+        "index=s"          => \$MD5summedIndex,
 	"JSON|JSONOUT|JSONGPG=s"	=> \$GPGJSON,	#	= The JSON file containing details of the programming running
  )
 	or usage ("Error in command line arguments\n");
@@ -217,15 +218,16 @@ $DirToSurvey =~ s/\/$//;	#strip trailing slash off:
 
 unless (defined ($DirToSurvey) && -d $DirToSurvey)
 	{	usage ("No Directory to survey supplied\n");	}
-
+($MD5summedIndex && -e $MD5summedIndex) or $MD5summedIndex = "$DirToSurvey/index/Files.md5.RF";
 #Convert to absolute path:
 $DirToSurvey = abs_path($DirToSurvey);
 
 #Now assumed (boldly!) that these files exist; if everything is correct they should
 #and if not we are going to fail approval of this directory anyway 
 
-my 		$FileListMD5s 	= "$DirToSurvey/index/Files.md5.RF";		#This (should) exist
-my 		$GPGJSONFile	= "$DirToSurvey/index/GPG_result.json";		#As should this
+#my 		$FileListMD5s 	= "$DirToSurvey/index/Files.md5.RF";		#This (should) exist
+my             $FileListMD5s   =  $MD5summedIndex;            #This (should) exist
+my 		$GPGJSONFile   = "$DirToSurvey/index/GPG_result.json";		#As should this
 
 
 #Check these exist:

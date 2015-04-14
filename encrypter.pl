@@ -596,7 +596,7 @@ while (<INPUTLIST>)		# $_ will be set to the file names as they are presented to
 #5c650eda6453051a1a4621454bfc4c1e  /u/mmoorhouse/tickets/tapeArchiveSPB_2983/testDir/test_dir.struct.tar         23500800
 #2ef63ba2438d71a0ee499d86d1684772  /u/mmoorhouse/tickets/tapeArchiveSPB_2983/testDir/real_fs/B/7.file    2097152
 	#split up the incoming line:
-	my ($MD5, $FilePath, $ReportedFS)	= $_ =~ m/^([a-z0-9]{32})\s+(.*?)\s+\t(\d+?)$/;
+	my ($MD5, $FilePath, $ReportedFS)	= $_ =~ m/^([a-z0-9]{32})[\s,\t]+(.*?)[\s,\t]+(\d+?)$/;
 #	print "D: Split is: '$MD5', '$FilePath', '$ReportedFS'\n";
 	#Run a parse/reality check on the filesize: if we got the filesize, then likely the other two items parsed correctly too:
 	unless (defined $ReportedFS && $ReportedFS ne "")
