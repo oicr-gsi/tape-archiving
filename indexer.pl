@@ -455,7 +455,9 @@ foreach my $C_File (@LinesToProcess)
 	{
 	my ($FileName, $Index) = ($$C_File[0], $$C_File[1]);	#I.e. first (0th) is the filename, second is it's index	
 #Issue MD5 request (& do reality checks):
+                $FileName=~s/ /\\ /g; #Escape spaces in file names
 		my $MD5Result= `md5sum $FileName`;
+                $FileName=~s/\\//g;   #Un-escape
 		unless ($MD5Result =~ m/^[a-f0-9]{32} /)			{next;}		#I.e. create a 'hole' in the output file
 		chomp($MD5Result);
 #Get the size (& do reality checks):
@@ -790,8 +792,14 @@ We survey the directories - and as an optimisation we test the most frequent cas
 	#This is normal, real file: note it and skip:
 	if  (not (-l $C_Object) &&  $ObjSize >0)
 		{	
+                if ($C_Object=~/\W$/) { # We'll skip strange files marking them as empty
+                  $EmptyFiles++;
+                  print NULLS $C_Object,"\n";
+                  print "#: Found strangely named file [$C_Object] that will not be backed up\n";
+                  next;
+                }
 		$NormalFiles++;
-		print FILES $C_Object,"\n";		
+               	print FILES $C_Object,"\n";		
 		next;	}
 		
 	#An empty file: 
@@ -846,7 +854,6 @@ $JSON_Struct{"Counts"}{"Files"} 				= $NormalFiles;	#JSON Load
 $JSON_Struct{"Counts"}{"Active Links"} 			= $ActiveLinks;	#JSON Load
 $JSON_Struct{"Counts"}{"Directories"} 			= $Directories;		#JSON Load
 $JSON_Struct{"Counts"}{"Null"} 					= $EmptyFiles;		#JSON Load
-
 
 =head3 Cleanup of open list files
 
@@ -984,7 +991,7 @@ $JSON_Struct{"RF Job"}{"Job Name"}						= $JobName;
 open QSUBSCRIPT, ">$QSUBScript" or die "Cannot create: '$QSUBScript'\n";
 print QSUBSCRIPT $SGEScript;
 close QSUBSCRIPT;
-
+`chmod +x $QSUBScript`;
 print "# Qsub / Bash script is: ",-s $QSUBScript," bytes in size on disk\n";
 
 
@@ -1037,6 +1044,7 @@ Which should match what we passed here:
 	open COLLECTORRF, ">$IndexCollectorScriptRF" or die "Cannot open '$IndexCollectorScriptRF'\n";
 	print COLLECTORRF $MD5CollectorScript;
 	close COLLECTORRF;
+        `chmod +x $IndexCollectorScriptRF`;
 	print "D: Written out '$IndexCollectorScriptRF'\n";
 
 	#Build the QSub command:
@@ -1115,6 +1123,7 @@ if ($ActiveLinks >0)
 	open QSUBCOMMAND, ">$ActiveLinksQSubScriptFile" or die "Cannot create: '$ActiveLinksQSubScriptFile'\n";
 	print QSUBCOMMAND $SGEScript;
 	close QSUBCOMMAND;
+        `chmod +x $ActiveLinksQSubScriptFile`;
 	
 	print "# Qsub / Bash script is: ",-s $ActiveLinksQSubScriptFile," bytes in size on disk\n";
 	
@@ -1157,6 +1166,7 @@ Which should match what we passed here:
 	open COLLECTORRF, ">$IndexCollectorScriptALS" or die "Cannot open '$IndexCollectorScriptALS'\n";
 	print COLLECTORRF $MD5CollectorScriptALS;
 	close COLLECTORRF;
+        `chmod +x $IndexCollectorScriptALS`;
 	print "D: Written out '$IndexCollectorScriptALS'\n";
 
 

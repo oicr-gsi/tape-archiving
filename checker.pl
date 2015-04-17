@@ -107,12 +107,13 @@ while (<INPUTFILE>)
         $Count++;  #Increment the line counter
         unless ($Count == $WANTEDLINE)  {       next;   }       #Skip until the line we want:
 #Below here only processed for wanted lines: 
-        my ($MD5, $FilePath) =  split (/[\t\s]+/,$_);
+        my ($MD5, $FilePath)  = m/^([a-f0-9]{32})[\t\s]+(.+?)[\t\s]+(\d+)$/;
         print "D: MD5 = '$MD5'; '$FilePath'\n";
 #We try to emulate a command like this:        
 # gpg -d /u/mmoorhouse/tickets/tapeArchiveSPB_2983/testDir_op/encrypted/real_fs/B/9.file.gpg 2> /dev/null | md5sum
+        $FilePath =~ s/ /\\ /g; # Escape spaces
         my $GPGCommand = "gpg --decrypt $FilePath | md5sum";
-        
+        $FilePath =~ s/\\//g;   # Un-escape
         print "D: '$GPGCommand'\n"; 
 		my $GPGResult = `$GPGCommand`;
 		print "D: '$GPGResult'\n";
@@ -400,7 +401,7 @@ open MDFILES, $FileListMD5s;
 while (<MDFILES>)
 	{
 	$FilesProcessed++;
-	my ($MD5, $File) = split (/\s+/,$_);
+        my ($MD5, $File) = m/^([a-z0-9]{32})[\s\t]+(.+)[\s\t]\d+$/;
 #		my (undef, $Dir) = fileparse ($_);
 ##Note the directory, if we haven't seen it before:
 # 
@@ -456,6 +457,7 @@ print SGESCRIPT $DecryptBaseScript;
 close SGESCRIPT;
 
 `chmod a+x $DecryptScript`;
+
 my $GPGLaunchResult = `qsub -q spbcrypto $DecryptScript`;
 print "#: GPG (decrypt) Launch result was: '$GPGLaunchResult'\n# Waiting 2s before qstat\n";
 #
@@ -489,8 +491,9 @@ print "#:   $QStatResult#\n#\n";
 	$CollectorBaseScript =~ s/OUTPUTDIR_TAG/$GPGScriptDir/g;
 	$CollectorBaseScript =~ s/JOBNAME_TAG/$JobName/g; 
 	open COLLECTOR, ">$CollectorBaseScriptFile";	print COLLECTOR $CollectorBaseScript; close COLLECTOR;
+        `chmod +x $CollectorBaseScriptFile`;
 	
-	#Take a copy and substitute in the path: this scritpt is so short & simple we don't even write it to a file:
+	#Take a copy and substitute in the path: this script is so short & simple we don't even write it to a file:
 	my $MD5CollectorCommand= 	
 	"qsub -q spbcrypto -hold_jid $JobName -N CHK_Collector\_$Time -b y -S /bin/bash -o /dev/null -e /dev/null \"$CollectorBaseScriptFile\"";
 	

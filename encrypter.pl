@@ -63,7 +63,7 @@ The default setting of 0.1 assumes that the encrypted output files will be the s
 but somebody might use the extra disk space during the run).
 Set this to 0 to disable the check.  As it uses df (not du) and a sum of the filesizes in the index file it computationally fast.   
 
-=head5 Not active parameters
+=head4 Not active parameters
 
 Not currently activate, but the code is present:
 "NoAutoIndexRemove|nai|nair"	=>		= Do *Not* remove the final directory 'index' when setting the default path

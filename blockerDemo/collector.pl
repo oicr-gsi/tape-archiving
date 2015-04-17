@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #$ -cwd 
-#$ -o /u/mmoorhouse/tickets/tapeArchiveSPB_2983/blockRunner/output/logs/myoutput.log
-#$ -e /u/mmoorhouse/tickets/tapeArchiveSPB_2983/blockRunner/output/logs/myerror.log
+#$ -o ./output/logs/myoutput.log
+#$ -e ./output/logs/myerror.log
 #$ -S /usr/bin/perl
 
 =head1 collector.pl
