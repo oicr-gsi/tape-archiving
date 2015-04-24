@@ -25,6 +25,7 @@ To run this on the (aged) systems of the cluster try loading these modules to ge
 
 use strict;
 use JSON;	#Helps with reporting various quantities
+use constant DEBUG=>0;
 
 #We use a lot of File:: modules here ;-)
 use File::Basename;							#Manipulate paths 1
@@ -112,6 +113,7 @@ while (<INPUTFILE>)
 #We try to emulate a command like this:        
 # gpg -d /u/mmoorhouse/tickets/tapeArchiveSPB_2983/testDir_op/encrypted/real_fs/B/9.file.gpg 2> /dev/null | md5sum
         $FilePath =~ s/ /\\ /g; # Escape spaces
+        $FilePath =~ s/([{(})%@])/\\$1/g; # Escape special characters
         my $GPGCommand = "gpg --decrypt $FilePath | md5sum";
         $FilePath =~ s/\\//g;   # Un-escape
         print "D: '$GPGCommand'\n"; 
@@ -326,7 +328,7 @@ The GPG decrypted script, its instruction file, the collector script, the output
 #This is a convenience and eases variable interpolation: 
 my $GPGScriptDir 			= $$JSON_Struct_ref{"Paths"}{"Script Dir"};
 unless (-e $GPGScriptDir)
-	{	print "D: GPG script dir: '$GPGScriptDir' does not exist\n";	}
+	{	print "D: GPG script dir: '$GPGScriptDir' does not exist\n" if DEBUG;}
 my $DecryptScript 				= "$DirToSurvey/scripts/decryptTest.pl";	
 my $CollectorBaseScriptFile 	= "$GPGScriptDir/checker_collector.pl";
 my $DecryptInstructionsTabFile 	= "$GPGScriptDir/$INSTRUCTIONSFILE";
@@ -394,14 +396,14 @@ my %MD5s;	#We might not use this ultimately; for now though...store in memory.
 
 my %Directories;
 
-print "D: BaseDir for encrypted files:'$BaseDirForEncFiles'\n";
+print "D: BaseDir for encrypted files:'$BaseDirForEncFiles'\n" if DEBUG;
 #die "HIT BLOCK\n";
 open INSTRUCTTAB, ">$DecryptInstructionsTabFile" or die "Cannot create instruction file for GPG Decrypt: '$DecryptInstructionsTabFile'\n";
 open MDFILES, $FileListMD5s;
 while (<MDFILES>)
 	{
 	$FilesProcessed++;
-        my ($MD5, $File) = m/^([a-z0-9]{32})[\s\t]+(.+)[\s\t]\d+$/;
+        my ($MD5, $File) = m/^([a-z0-9]{32})[\s\t]+(.+?)[\s\t]+\d+$/;
 #		my (undef, $Dir) = fileparse ($_);
 ##Note the directory, if we haven't seen it before:
 # 
@@ -414,20 +416,20 @@ while (<MDFILES>)
 #	$Directories {$Dir}=scalar (File::Spec->splitdir ($File));	
 	chomp ($File);
 	
-	print "D: File: $FilesProcessed\t$File = $MD5\n";
+	print "D: File: $FilesProcessed\t$File = $MD5\n" if DEBUG;
 	my $GPGFile = $File;
 	#$GPGFile =~ s/$OriginalDirBase//;
 	#$GPGFile = $BaseDirForEncFiles.$GPGFile;
 	
 	$GPGFile =~ s/$OriginalDirBase//;
 	$GPGFile = $BaseDirForEncFiles.$GPGFile.".gpg";
-	print "D: GPG File: '$GPGFile'\n";
+	print "D: GPG File: '$GPGFile'\n" if DEBUG;
 	unless (-e $GPGFile)
 		{
 			warn "$GPGFile ($FilesProcessed) does not exist\n";
 		}
 	print INSTRUCTTAB "$MD5\t$GPGFile\n";
-	print "D: $FilesProcessed will actually test: '$GPGFile' MD5 (original): $MD5\n";
+	print "D: $FilesProcessed will actually test: '$GPGFile' MD5 (original): $MD5\n" if DEBUG;
 	}
 close MDFILES;
 close INSTRUCTTAB;
@@ -450,7 +452,7 @@ $DecryptBaseScript =~ s/FILELIST_TAG/$DecryptInstructionsTabFile/g;
 $DecryptBaseScript =~ s/RESULTSOUTDIR_TAG/$DirToSurvey/g;		
 $DecryptBaseScript =~ s/MD5OUT_TAG/$GPGScriptDir/g;
 
-print "D: Decrypt script:\n $DecryptBaseScript\n'\n written to: '$DecryptScript'\n";
+print "D: Decrypt script:\n $DecryptBaseScript\n'\n written to: '$DecryptScript'\n" if DEBUG;
 
 open SGESCRIPT, ">$DecryptScript" or die "Cannot open SGE Script '$DecryptScript'\n";
 print SGESCRIPT $DecryptBaseScript;
