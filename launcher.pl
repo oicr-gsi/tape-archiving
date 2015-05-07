@@ -11,9 +11,6 @@
  The 'Sub Client Name' i.e. the 'Tape Name' is based on name of the directory supplied (can be overridden by the --SubclientName parameter)
  Any results returned are written into the GENERAL_INDEX_DIR (can be overridden by the "--index" parameter)
 
-
-=head2 NB: Currently this doesn't launch the 'output to tape' command while we are building it. 
-  
 =cut
 
 =head2 Loading modules
@@ -23,7 +20,6 @@
 
  module load perl/5.20.1
  module load spb-perl-pipe/dev
-
 
 =cut 
 
@@ -37,7 +33,7 @@ use strict;
 
 =head2 Set up Some Defaults and variables 
 
-We will fill these in using Get::Options and the deductions we make 
+ We will fill these in using Get::Options and the deductions we make 
 
 =cut
 
@@ -49,7 +45,6 @@ my $Clobber	        = 0;		# Can we overwrite output?
 my $SkipSGECheck        = 0;	        # Allow no SGE - we can't launch anything
 my $TStamp_Human        = timestamp(); 
 my $timestamp           = time;	        # Two versions of the timestamp 
-#my $GENERAL_INDEX_DEFAULT = "/tickets/tapeArchiveSPB_2983/mainIndex";
 
 GetOptions (
 	"index|Index|index=s" 		=> \$MasterIndexLocation,
@@ -118,8 +113,8 @@ unless (-e $MasterIndexLocation)
 	}
 	
 #Now this not existing is fatal:
-#unless (-e $MasterIndexLocation)
-#	{	usage ("Could not find the main index location: '$MasterIndexLocation'\n");		}
+unless (-e $MasterIndexLocation)
+	{	usage ("Could not find the main index location: '$MasterIndexLocation'\n");		}
 
 #We'll fill this in:
 my $JobIndexLocation = "";
@@ -127,13 +122,10 @@ my $JobIndexLocation = "";
 =head2 Deduce the SubClient Name
 
 =cut 
-#print "D: '$SubclientName' = $directories'\n";
 
 #If we were told to look in one place, but call the job / output something else:                  
 unless (defined $SubclientName && $SubclientName ne "")
 	{
-#	print "D: '$PathToArchive'\n";
-	#This is not the best regex, but it works
 	($SubclientName) = $PathToArchive =~ m/\/([^\/.]+)$/;
 	print "#: Setting default subclient name: '$SubclientName'\n";	
 	}
@@ -200,7 +192,7 @@ print "#: Launcher Qsub Command = '$QSubMainCommand'\n";
 
  Currently NOT implemented, backup_reporter script will scan the log directory and parse data on regular basis 
 
-=head3 This will parse a report such as this:
+=head3 waiter is supposed to parse a report such as this:
 
  Job ID: 310153
 
@@ -213,54 +205,30 @@ print "#: Launcher Qsub Command = '$QSubMainCommand'\n";
  Media: 006767
  006986
 
-
-
- ##############################################
-
-
-
- Directory Listing
- ...etc...
- 
+ --------------------------------------------------------------------------
  The truly important parts are the 'Media' section and the 'Subclient' name.
  These have their information extracted using RegEx pattern matching.
  
- =cut 
+ This will hang around and wait for the other job $JobName to finish - and whatever Brian's 
+ script returns as output ultimately.
 
-This will hang around and wait for the other job $JobName to finish - and whatever Brian's 
-script returns as output ultimately.
+ It does useful things such as associate the Jobname and Media IDs together and patch
+ the actual index into the master index location.
 
-It does useful things such as associate the Jobname and Media IDs together and patch
-the actual index into the master index location.
-
-It also bulk copies the index files across to the new location and links to the 'master file'
+ It also bulk copies the index files across to the new location and links to the 'master file'
 
 =cut
 
-#my $OrginalIndexLocation= "$PathToArchive/index/";
-#my $FilesASL = "$PathToArchive/index/Files.md5.ASL";
 
-#my $IndexLocationRF = "$SubclientLocationIndexPath/index";
-#A very simple file that people can 'join' against:
-#my $MediaUsedFile = "$SubclientLocationIndexPath/Media";
-
-#open MEDIAFILE, ">$MediaUsedFile"	or die "Cannot open the media file in the index location: '$MediaUsedFile'\n";
-#print MEDIAFILE 
-#close MEDIAFILE;
-#Add in: ???? curl ??? Maybe (egaTx) & sge (computMD5)tests: ????
-
-##
-#
-#
-###############
 sub timestamp {
 =head3 timestamp () = timestamp
 
-When called converts Perl's incomprehensible timestamp into something more human readable
+ When called converts Perl's incomprehensible timestamp into something more human readable
  
-20150211 15:02:21 
+ 2015/02/11 15:02:21 
 
-=cut 
+=cut
+ 
 #Taken verbatim from: 
 #http://stackoverflow.com/questions/12644322/how-to-write-the-current-timestamp-in-a-file-perl
     my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst)=localtime(time);
