@@ -2,26 +2,24 @@
 
 =head1 launcher.pl
 
-When pointed at a directory checks for a series of files including the 'APPROVED_TO_WRITE' one that is 
-the hallmark of 'checker.pl' program.
-
-Essentially it tries to produce commands such as this:
+ When pointed at a directory checks for a series of files including the 'APPROVED_TO_WRITE' one that is 
+ the hallmark of 'checker.pl' program.
+ Essentially it tries to produce commands such as this:
 
  qsub -q backups -N SomeCreativeName -S /bin/bash -b y "qscript_ndmp archive JellyBeansCureCancer /.mounts/labs/prod/backups/production/JellyBeans/experiment101"
 
- 
-The 'Sub Client Name' i.e. the 'Tape Name' is based on name of the directory supplied (can be overridden by the --SubclientName parameter)
-Any results returned are written into the GENERAL_INDEX_DIR (can be overridden by the "--index" parameter)
+ The 'Sub Client Name' i.e. the 'Tape Name' is based on name of the directory supplied (can be overridden by the --SubclientName parameter)
+ Any results returned are written into the GENERAL_INDEX_DIR (can be overridden by the "--index" parameter)
 
 
 =head2 NB: Currently this doesn't launch the 'output to tape' command while we are building it. 
   
 =cut
 
-=head2 Loading modules:
+=head2 Loading modules
 
-Technically these aren't required for this program due to any specific new feature, but they are for 
-the others in the package and so to keep things consistent.
+ Technically these aren't required for this program due to any specific new feature, but they are for 
+ the others in the package and so to keep things consistent.
 
  module load perl/5.20.1
  module load spb-perl-pipe/dev
@@ -29,34 +27,35 @@ the others in the package and so to keep things consistent.
 
 =cut 
 
-use File::Basename;							#Manipulate paths 1
-use File::Path qw(make_path remove_tree);	#Manipulate paths 2
-use File::Spec;								#Manipulate paths 3
-use Cwd 'abs_path';						#Recurse paths back to their 'source'
-use Getopt::Long;			#To process the switches / options:
+use File::Basename;			  # Manipulate paths 1
+use File::Path qw(make_path remove_tree); # Manipulate paths 2
+use File::Spec;				  # Manipulate paths 3
+use Cwd 'abs_path';			  # Recurse paths back to their 'source'
+use Getopt::Long;			  # To process the switches / options:
 
 use strict;
 
-=head2 SetUp Some Defaults and variables 
+=head2 Set up Some Defaults and variables 
 
 We will fill these in using Get::Options and the deductions we make 
 
 =cut
 
-my $SubclientName	=	"";		#we will fill this in
-my $MasterIndexLocation = "/u/mmoorhouse/tickets/tapeArchiveSPB_2983/mainIndex";
+my $SubclientName	= "";		# we will fill this in
+my $MasterIndexLocation = "/.mounts/labs/PDE/data/tapeBackup/qscript_ndmp_logs";
 my $SubclientLocationIndexPath	=	"";
-my $REPORTURLLOCATION = "http://ma3.hpc.oicr.on.ca/backups/";
-my $Clobber	 =0;		#Can we overwrite output?
-my $SkipSGECheck =0;	#Allow no SGE - we can't launch anything
-my $TStamp_Human =	timestamp(); my $timestamp = time;	#Two versions of the timestamp 
-my $GENERAL_INDEX_DEFAULT = "/tickets/tapeArchiveSPB_2983/mainIndex";
+my $REPORTURLLOCATION   = "http://ma3.hpc.oicr.on.ca/backups/";
+my $Clobber	        = 0;		# Can we overwrite output?
+my $SkipSGECheck        = 0;	        # Allow no SGE - we can't launch anything
+my $TStamp_Human        = timestamp(); 
+my $timestamp           = time;	        # Two versions of the timestamp 
+#my $GENERAL_INDEX_DEFAULT = "/tickets/tapeArchiveSPB_2983/mainIndex";
 
 GetOptions (
 	"index|Index|index=s" 		=> \$MasterIndexLocation,
-	"SubclientName=s" 			=> \$SubclientName,
-	"clobberOK"				=> \$Clobber,
-	"SkipSGECheck|nosgeok"				=>\$SkipSGECheck,
+	"SubclientName=s" 		=> \$SubclientName,
+	"clobberOK"			=> \$Clobber,
+	"SkipSGECheck|nosgeok"		=> \$SkipSGECheck,
  )
 	or usage ("Error in command line arguments\n");
 
@@ -119,8 +118,8 @@ unless (-e $MasterIndexLocation)
 	}
 	
 #Now this not existing is fatal:
-unless (-e $MasterIndexLocation)
-	{	usage ("Could not find the main index location: '$MasterIndexLocation'\n");		}
+#unless (-e $MasterIndexLocation)
+#	{	usage ("Could not find the main index location: '$MasterIndexLocation'\n");		}
 
 #We'll fill this in:
 my $JobIndexLocation = "";
@@ -149,7 +148,7 @@ $SubclientLocationIndexPath = $MasterIndexLocation."/".$SubclientName;
 print "#: Index path is: $SubclientLocationIndexPath\n";
  
  
-if (-e $SubclientLocationIndexPath && $Clobber ==0)	
+if (-e $SubclientLocationIndexPath && $Clobber == 0)	
 	{#According to Brian this is a show-stopper: subclient names must be unique.
 	die "Subclient directory already exists - jobs must be unique names; use --clobber to override\n";
 	}
@@ -188,12 +187,18 @@ my $STDOUTFile = "$SubclientLocationIndexPath/STDOUT.txt";
 my $STDERRFile = "$SubclientLocationIndexPath/STDERR.txt";
 
 my $QSubMainCommand = "qsub -q backups -N $JobName -S /bin/bash ".
-	"-o $STDOUTFile -e $STDERRFile".
-	" -b y \"qscript_ndmp archive $SubclientName $PathToArchive"; 
+	              "-o $STDOUTFile -e $STDERRFile".
+	              " -b y \"qscript_ndmp archive $SubclientName $PathToArchive\""; 
 
 print "#: Launcher Qsub Command = '$QSubMainCommand'\n";
 
+# Launch, actually
+
+`$QSubMainCommand`;
+
 =head2 Now build the 'waiter' command: 
+
+ Currently NOT implemented, backup_reporter script will scan the log directory and parse data on regular basis 
 
 =head3 This will parse a report such as this:
 
@@ -223,7 +228,7 @@ print "#: Launcher Qsub Command = '$QSubMainCommand'\n";
  =cut 
 
 This will hang around and wait for the other job $JobName to finish - and whatever Brian's 
-script returns as output ulitmately.
+script returns as output ultimately.
 
 It does useful things such as associate the Jobname and Media IDs together and patch
 the actual index into the master index location.
@@ -232,20 +237,17 @@ It also bulk copies the index files across to the new location and links to the 
 
 =cut
 
-my $OrginaalIndexLocation= "$PathToArchive/index/";
+#my $OrginalIndexLocation= "$PathToArchive/index/";
 #my $FilesASL = "$PathToArchive/index/Files.md5.ASL";
 
-my $IndexLocationRF = "$SubclientLocationIndexPath/index";
+#my $IndexLocationRF = "$SubclientLocationIndexPath/index";
 #A very simple file that people can 'join' against:
 #my $MediaUsedFile = "$SubclientLocationIndexPath/Media";
 
-open MEDIAFILE, ">$MediaUsedFile"	or die "Cannot open the media file in the index location: '$MediaUsedFile'\n";
-print MEDIAFILE 
-close MEDIAFILE;
+#open MEDIAFILE, ">$MediaUsedFile"	or die "Cannot open the media file in the index location: '$MediaUsedFile'\n";
+#print MEDIAFILE 
+#close MEDIAFILE;
 #Add in: ???? curl ??? Maybe (egaTx) & sge (computMD5)tests: ????
-
-
-
 
 ##
 #
@@ -262,7 +264,7 @@ When called converts Perl's incomprehensible timestamp into something more human
 #Taken verbatim from: 
 #http://stackoverflow.com/questions/12644322/how-to-write-the-current-timestamp-in-a-file-perl
     my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst)=localtime(time);
-    my $nice_timestamp = sprintf ( "%04d%02d%02d %02d:%02d:%02d",
+    my $nice_timestamp = sprintf ( "%04d/%02d/%02d %02d:%02d:%02d",
                                    $year+1900,$mon+1,$mday,$hour,$min,$sec);
     return $nice_timestamp;
 

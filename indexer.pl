@@ -310,7 +310,7 @@ use File::Path qw(make_path remove_tree);	#Manipulate paths 2
 use File::Spec;								#Manipulate paths 3
 use Cwd 'abs_path';						#Recurse paths back to their 'source'
 use Cwd;								#Get the Current Working Directory
-use POSIX qw(ceil floor);						#For the ceiling functionality 
+use POSIX qw(ceil);						#For the ceiling functionality 
 use Getopt::Long;			#To process the switches / options:
 
 =head2 Set some defaults & pseudo-constants
@@ -935,8 +935,8 @@ print "#: Or split out: for Active Links: '$NBlocks_ALS' (number of blocks)\n";
 print "#: I.e. Block sizes will be:\n";
 
 
-my $BlockSize_RF 	= floor ($NormalFiles/$NBlocks_RF);
-my $BlockSize_ALS 	= floor ($ActiveLinks/$NBlocks_ALS);
+my $BlockSize_RF 	= ceil ($NormalFiles/$NBlocks_RF);
+my $BlockSize_ALS 	= ceil ($ActiveLinks/$NBlocks_ALS);
 
 
 print "#: for Real Files:   '$BlockSize_RF'\n";
