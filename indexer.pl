@@ -310,7 +310,7 @@ use File::Path qw(make_path remove_tree);	#Manipulate paths 2
 use File::Spec;								#Manipulate paths 3
 use Cwd 'abs_path';						#Recurse paths back to their 'source'
 use Cwd;								#Get the Current Working Directory
-use POSIX qw(ceil);						#For the ceiling functionality 
+use POSIX qw(ceil floor);						#For the ceiling functionality 
 use Getopt::Long;			#To process the switches / options:
 
 =head2 Set some defaults & pseudo-constants
@@ -326,7 +326,7 @@ my %JSON_Struct;		#Ultimately we dump this as a JSON output, upon success of the
 
 #Both of these are assumptions:
 my $MAX_JOB_LIMT 	= 	75000;	#Maximum number of jobs available to us 
-my $MAXNJOBSPERNODE	=	10;		#Maximum number of jobs we will ask each node to do as part of a job
+my $MAXNJOBSPERNODE	=	20;		#Maximum number of jobs we will ask each node to do as part of a job
 #For testing: stupidly small:
 #$MAX_JOB_LIMT =10;
 
@@ -456,7 +456,7 @@ foreach my $C_File (@LinesToProcess)
 	my ($FileName, $Index) = ($$C_File[0], $$C_File[1]);	#I.e. first (0th) is the filename, second is it's index	
 #Issue MD5 request (& do reality checks):
                 $FileName=~s/ /\\ /g; #Escape spaces in file names
-                $FileName=~s/([{(})%@])/\\$1/g; # Escape special characters
+                $FileName=~s/([{|(})%@])/\\$1/g; # Escape special characters
 		my $MD5Result= `md5sum $FileName`;
                 $FileName=~s/\\//g;   #Un-escape
 		unless ($MD5Result =~ m/^[a-f0-9]{32} /)			{next;}		#I.e. create a 'hole' in the output file
@@ -994,7 +994,6 @@ print QSUBSCRIPT $SGEScript;
 close QSUBSCRIPT;
 `chmod +x $QSUBScript`;
 print "# Qsub / Bash script is: ",-s $QSUBScript," bytes in size on disk\n";
-
 
 =head4 Do QSub - if we have grid access and launch the collector script (#2) (trail tag: RF)
 
