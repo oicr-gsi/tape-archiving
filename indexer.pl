@@ -326,9 +326,7 @@ my %JSON_Struct;		#Ultimately we dump this as a JSON output, upon success of the
 
 #Both of these are assumptions:
 my $MAX_JOB_LIMT 	= 	75000;	#Maximum number of jobs available to us 
-my $MAXNJOBSPERNODE	=	20;		#Maximum number of jobs we will ask each node to do as part of a job
-#For testing: stupidly small:
-#$MAX_JOB_LIMT =10;
+my $MAXNODES	=	20;	#Maximum number of jobs we will ask each node to do as part of a job
 
 =head3 Create the skeleton SGE Script in this next section
 
@@ -344,7 +342,7 @@ This version uses 'SGE Array Jobs' (against Brent's advice!).
 In this a series of "TAGS" 
 The hashes in the first few lines mean something to SGE apparently...
 
-=head4 The version in code:
+=head4 The template of what is actually used:
 
  #!/usr/bin/perl
  # : Compute the MD5 sums for files passed (if there are any)
@@ -899,23 +897,23 @@ In the code the +0.5 is a hack to ensure that the int() calculations always roun
 my $TotalJobs = $NormalFiles + $ActiveLinks;
 print "#: Files to process: '$NormalFiles+$ActiveLinks ( = $TotalJobs )'\n";
 #Reality check: are we able to process what we have been asked?
-if ($NormalFiles >= $MAX_JOB_LIMT * $MAXNJOBSPERNODE)
-	{	die	"Even with $MAXNJOBSPERNODE jobs per node, this is still too many files ($NormalFiles)!  (Max job number: $MAX_JOB_LIMT)\n";	}
+if ($NormalFiles >= $MAX_JOB_LIMT * $MAXNODES)
+	{	die	"Even with $MAXNODES jobs per node, this is still too many files ($NormalFiles)!  (Max job number: $MAX_JOB_LIMT)\n";	}
 
-if ($ActiveLinks >= $MAX_JOB_LIMT * $MAXNJOBSPERNODE)
-	{	die	"Even with $MAXNJOBSPERNODE jobs per node, this is still too many active links ($ActiveLinks)! Max job number: $MAX_JOB_LIMT)\n";	}
+if ($ActiveLinks >= $MAX_JOB_LIMT * $MAXNODES)
+	{	die	"Even with $MAXNODES jobs per node, this is still too many active links ($ActiveLinks)! Max job number: $MAX_JOB_LIMT)\n";	}
 
 
 #A mini-algorithm to pick the best block size: use all the fancy 'multi-line' stuff only if we have to:
 my $NBlocks_RF=1;		#For the real files
 
 if ($NormalFiles > $MAX_JOB_LIMT)
-	{	$NBlocks_RF = calculateBlockSize ($NormalFiles, $MAX_JOB_LIMT*$NormalFiles/$TotalJobs );	} #Also this call uses $MAX_JOB_LIMT & $MAXNJOBSPERNODE for reality checks
+	{	$NBlocks_RF = calculateBlockSize ($NormalFiles, $MAX_JOB_LIMT*$NormalFiles/$TotalJobs );	} #Also this call uses $MAX_JOB_LIMT & $MAXNODES for reality checks
 	
 
 my $NBlocks_ALS =1;		#For the active symlinks
 if ($ActiveLinks > $MAX_JOB_LIMT)
-	{	$NBlocks_ALS = calculateBlockSize ($ActiveLinks, $MAX_JOB_LIMT*$ActiveLinks/$TotalJobs);	} #Also this call uses $MAX_JOB_LIMT & $MAXNJOBSPERNODE for reality checks
+	{	$NBlocks_ALS = calculateBlockSize ($ActiveLinks, $MAX_JOB_LIMT*$ActiveLinks/$TotalJobs);	} #Also this call uses $MAX_JOB_LIMT & $MAXNODES for reality checks
 
 
 #print "D: ceiling (0.1)",ceil(0.1),"\n"; print "D: ceiling (0.5)",ceil(0.5),"\n"; print "D: ceiling (0.9)",ceil(0.9),"\n";
@@ -1237,7 +1235,7 @@ die "Usage: ./indexer.pl <Path to Survery> <Output Path> : $Message\n";
 
 sub calculateBlockSize 
 {
-=head2 my $NBlocks_RF = calculateBlockSize ($NormalFiles, $MaxJobsAllowed);	#Also this call uses $MAX_JOB_LIMT & $MAXNJOBSPERNODE
+=head2 my $NBlocks_RF = calculateBlockSize ($NormalFiles, $MaxJobsAllowed);	#Also this call uses $MAX_JOB_LIMT & $MAXNODES
 
 When called runs an iterative loop that determines the minumum block size that won't exhaust the number of grid jobs 
 
@@ -1248,14 +1246,14 @@ unless (defined $NFiles && $NFiles ne "" && defined $JobsAllowed && $JobsAllowed
 print "D: calculateBlockSize(): $NFiles, $JobsAllowed\n";
 
 my $BlockSize=1;
-while ($BlockSize <= $MAXNJOBSPERNODE && $TotalJobs > $JobsAllowed)
+while ($BlockSize <= $MAXNODES && $TotalJobs > $JobsAllowed)
 	{
 	$BlockSize ++;				
 	$TotalJobs = ceil ($NFiles / $BlockSize);
 	print "D: For block size of  $BlockSize  (number of total files $JobsAllowed: I would use: $TotalJobs jobs / slots \t c.f $MAX_JOB_LIMT available)\n";
 	}
 
- if ($BlockSize >= $MAXNJOBSPERNODE)		#Can't imagine it would be greater, but still: check
+ if ($BlockSize >= $MAXNODES)		#Can't imagine it would be greater, but still: check
 	{	die "Max block size (number of tasks per node reached) - either I've committed an error or there are are really lot (too many!) jobs for the queue ($MAX_JOB_LIMT)\n";	}
 
 print "D: calculateBlockSize(): '$BlockSize'\n";
