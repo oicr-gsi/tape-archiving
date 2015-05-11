@@ -34,6 +34,7 @@ use File::Spec;								#Manipulate paths 3
 use Cwd 'abs_path';						#Recurse paths back to their 'source'
 use Cwd;								#Get the Current Working Directory 
 use Getopt::Long;			#To process the switches / options:
+use POSIX qw(ceil);
 use 5.10.0;	# 
 
 
@@ -45,7 +46,8 @@ use 5.10.0;	#
 my $GPGJSONDEFAULT				= "index/GPG_result.json";
 #This is the location of the 'instrcutions' file for the GPG Job:
 my $INSTRUCTIONSFILE 			= "checker_instruction.tab";
-
+my $MAX_JOB_LIMT = 75000;
+my $MAXNODES     = 100;
 my @KEYS = "4019DEF8";		#We need to have the private / secret key to decrypt the data
 
 
@@ -87,7 +89,7 @@ But check the real code for this.
 my $DecryptBaseScript = <<'MD5_SCRIPT';
 #!/usr/bin/perl
 # : Decrypt to MD5 sums for all files supplied
-#$ -t 1-NFILES_TAG
+#$ -t 1-NBLOCK_TAG
 #$ -cwd
 #$ -o /dev/null
 #$ -e /dev/null
@@ -97,38 +99,49 @@ my $DecryptBaseScript = <<'MD5_SCRIPT';
 
 use strict;
 my $JobID = "JOBNAME_TAG";	#Because we need this
-my $WANTEDLINE = $ENV{"SGE_TASK_ID"};     #This is passed as an environment variable by SGE / Qsub
+my $Block=$ENV{"SGE_TASK_ID"};     #This is passed as an environment variable by SGE / Qsub
+my $BlockSize = "BLOCKSIZE_TAG";
+
 my $ResultOutputDir = "MD5OUT_TAG";	#Where we will put the results
 my $FileList = "FILELIST_TAG";
 open INPUTFILE , "$FileList" or die "Cannot open list of files '$FileList' containing MD5s\n";
 
+#Hence, calculate the actual line numbers between which we will process:
+my $WantedLine_Start = ($Block-1) * $BlockSize;
+my $WantedLine_End = ($Block) * $BlockSize;
+my @LinesToProcess;
+
 my $Count=0;
-while (<INPUTFILE>)
-        {
+while (<INPUTFILE>) {
         $Count++;  #Increment the line counter
         unless ($Count == $WANTEDLINE)  {       next;   }       #Skip until the line we want:
-#Below here only processed for wanted lines: 
+        if ($Count <= $WantedLine_Start)        {       next;   }       #Skip until the lines we want:
+        if ($Count > $WantedLine_End )                  {               last;   }
+
+        #Below here only processed for wanted lines: 
         my ($MD5, $FilePath)  = m/^([a-f0-9]{32})[\t\s]+(.+?)[\t\s]+(\d+)$/;
         print "D: MD5 = '$MD5'; '$FilePath'\n";
-#We try to emulate a command like this:        
-# gpg -d /u/mmoorhouse/tickets/tapeArchiveSPB_2983/testDir_op/encrypted/real_fs/B/9.file.gpg 2> /dev/null | md5sum
+        push @LinesToProcess, [$MD5,$FilePath];
+}
+close INPUTFILE;
+
+foreach my $FileData (@LinesToProcess) {
+        #We try to emulate a command like this:        
+        # gpg -d ./real_fs/B/9.file.gpg 2> /dev/null | md5sum
+        my ($MD5, $FilePath) = ($$FileData[0], $$FileData[1]);
+
         $FilePath =~ s/ /\\ /g; # Escape spaces
-        $FilePath =~ s/([{(})%@])/\\$1/g; # Escape special characters
+        $FilePath =~ s/([{|(})%@])/\\$1/g; # Escape special characters
         my $GPGCommand = "gpg --decrypt $FilePath | md5sum";
         $FilePath =~ s/\\//g;   # Un-escape
         print "D: '$GPGCommand'\n"; 
 		my $GPGResult = `$GPGCommand`;
 		print "D: '$GPGResult'\n";
 		my $ErrorFile = "$ResultOutputDir/$JobID\_$WANTEDLINE\.encrypt-error";
-	#Temporary: 
-#		open OUTPUT, ">$ErrorFile" or die "Cannot open output file: '$ErrorFile'\n";
-#		print OUTPUT "$FilePath = $GPGResult\n";
-#		close OUTPUT;
 		
-		unless ($GPGResult =~ m/$MD5/)	#We bother parsing the output - provided the MD5 sum is there
-			{	
-#Note the error:
-			
+		unless ($GPGResult =~ m/$MD5/)	{ #We bother parsing the output - provided the MD5 sum is there
+
+                        #Note the error:
 			open OUTPUT, ">$ErrorFile" or die "Cannot open output file: '$ErrorFile'\n";
 			print OUTPUT "$FilePath = $GPGResult\n";
 			close OUTPUT;
@@ -153,7 +166,7 @@ use strict;
 my ($GPGOutputDirectory, $Jobname) =	("OUTPUTDIR_TAG", "JOBNAME_TAG");
 #How to set these outside to check them on the commandline:
  
-#my ($GPGOutputDirectory, $Jobname) = ("/u/mmoorhouse/tickets/tapeArchiveSPB_2983/testDir_op/scripts/", "FLUFFY");
+#my ($GPGOutputDirectory, $Jobname) = ("tapeArchiveSPB_2983/testDir_op/scripts/", "FLUFFY");
 
 #Check we got our command line arguments:
 unless (defined $GPGOutputDirectory)		{die "No output Directory supplied\n";}
@@ -445,12 +458,22 @@ close INSTRUCTTAB;
 Replace all these '_TAGs' in the code
 
 =cut
+
+#Reality check: are we able to process what we have been asked?
+if ($FilesProcessed >= $MAX_JOB_LIMT * $MAXNODES)
+        {       die     "Even with $MAX_JOB_LIMT jobs per node, this is still too many files ($FilesProcessed)!  (Max job number: $MAX_JOB_LIMT)\n";    }
+
+my $NBlocks = $FilesProcessed < $MAXNODES ? 1 : $MAXNODES; 
+my $BlockSize        = ceil ($FilesProcessed/$NBlocks);
+print "#: GPG Array script will use $NBlocks of size $BlockSize\n";
+
 my $JobName = "CHK_".$Time;
-$DecryptBaseScript =~ s/NFILES_TAG/$FilesProcessed/g;
+$DecryptBaseScript =~ s/NBLOCK_TAG/$NBlocks/g;
 $DecryptBaseScript =~ s/JOBNAME_TAG/$JobName/g;
 $DecryptBaseScript =~ s/FILELIST_TAG/$DecryptInstructionsTabFile/g;
 $DecryptBaseScript =~ s/RESULTSOUTDIR_TAG/$DirToSurvey/g;		
 $DecryptBaseScript =~ s/MD5OUT_TAG/$GPGScriptDir/g;
+$DecryptBaseScript =~ s/BLOCKSIZE_TAG/$BlockSize/;
 
 print "D: Decrypt script:\n $DecryptBaseScript\n'\n written to: '$DecryptScript'\n" if DEBUG;
 

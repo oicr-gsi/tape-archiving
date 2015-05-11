@@ -116,7 +116,8 @@ use File::Spec;								#Manipulate paths 3
 
 use Cwd 'abs_path';						#Recurse paths back to their 'source'
 use Cwd;								#Get the Current Working Directory 
-use Getopt::Long;			#To process the switches / options:
+use Getopt::Long;                       #To process the switches / options:
+use POSIX qw(ceil);			#To enable ceiling calculations
 use 5.10.0;	# 
 use JSON;	#Helps with reporting various quantities
 use Data::Dumper;
@@ -131,6 +132,9 @@ my @KEYS = ("BC3E454B", "E16641B3", "1C1742CB");	#OICR Tape (pub only), OICR Gen
 my $SkipSGECheck = 0;
 my $ExFrequency = 0;	#the frequency of diagnostic printing; if enabled (set to 0 to disable) 
 my $NoStripPath = 0;
+my $MAX_JOB_LIMT = 75000;
+my $MAXNODES = 100;
+
 #my $NoAutoIndexRemove=0;
 my $BasePath = "";
 #my $OUTDIRTAG = "_out";
@@ -178,31 +182,52 @@ The hashes in the first few lines mean something to SGE apparently...
 my $GPGBaseScript = <<'END_SCRIPT';
 #!/usr/bin/perl
 
-#$ -t 1-NFILES_TAG
+#$ -t 1-NBLOCK_TAG
 #$ -cwd
 #$ -S /usr/bin/perl
 #$ -e /dev/null
 #$ -o /dev/null
 #$ -N GPG_Tape_GPG_TIME_TAG
 
-my $WANTEDLINE=$ENV{"SGE_TASK_ID"};     #This is passed as an environment variable by SGE / Qsub
+my $Block=$ENV{"SGE_TASK_ID"};     #This is passed as an environment variable by SGE / Qsub
 
 open INPUTFILE , "FILELIST_TAG";
 
+my $BlockSize = "BLOCKSIZE_TAG";
+
+#Hence, calculate the actual line numbers between which we will process:
+my $WantedLine_Start = ($Block-1) * $BlockSize;
+my $WantedLine_End = ($Block) * $BlockSize;
+
 my $Count=0;
+my @LinesToProcess;
 while (<INPUTFILE>)
         {
         $Count++;               #Increment the line counter
-        unless ($Count == $WANTEDLINE)  {       next;   }       #Skip until the line we want:
+        if ($Count <= $WantedLine_Start)        {       next;   }       #Skip until the lines we want:
+        if ($Count > $WantedLine_End )                  {               last;   }
 #Below here only processed for wanted lines:
         chomp ();               #Strip new lines off 
         my ($Input, $Output) =  split (/\t/,$_);
 #       print "D: $Input ---> $Output\n";
-#Issue the command (magically KEYS_!TAG will have been subsitituted in by the main Perl script by the time this runs
-        `gpg --trust-model always KEYS_TAG -o "$Output" -e "$Input"`;
-        exit;           #Exit here is an optimisation: leave other lines for other instances
+        push @LinesToProcess, [$Input,$Output];
         }
+
+foreach my $I_File (@LinesToProcess)
+        {
+        my ($In, $Out) = ($$I_File[0], $$I_File[1]);    #I.e. first (0th) is the filename, second is it's encrypted version
+#Issue MD5 request (& do reality checks):
+                $In=~s/ /\\ /g; #Escape spaces in file names
+                $In=~s/([{(})%@])/\\$1/g; # Escape special characters
+                $Out=~s/ /\\ /g; #Escape spaces in file names
+                $Out=~s/([{(})%@])/\\$1/g; # Escape special characters
+                
+                # This should be done not too many times in one job, given 100 nodes we may have up to 
+                `gpg --trust-model always KEYS_TAG -o "$Out" -e "$In"`;
+        }        
+
 END_SCRIPT
+
 
 #Mimic this:
 #gpg --trust-model always -r EGA_Public_key -r SeqProdBio -o $TMPOUT/$FName.gpg -e $InputFile"
@@ -774,12 +799,6 @@ close INSTRUCTIONLIST;
 
 gpg  --trust-model always -e -r "BC3E454B" -r "E16641B3" -r "1C1742CB"
 
-Script will be similar to this:
-
-
-???Insert when it approaches completion???
-
-
 =cut
 
 #Convert to Abs paths prior to substituting:
@@ -787,14 +806,22 @@ Script will be similar to this:
 $GPGInstructionFile 	= File::Spec->rel2abs($GPGInstructionFile);
 $GPGScriptDir	= File::Spec->rel2abs($GPGScriptDir);
 
+#Reality check: are we able to process what we have been asked?
+if ($NFilesFound >= $MAX_JOB_LIMT * $MAXNODES)
+        {       die     "Even with $MAX_JOB_LIMT jobs per node, this is still too many files ($NFilesFound)!  (Max job number: $MAX_JOB_LIMT)\n";    }
+
+my $NBlocks = $NFilesFound < $MAXNODES ? 1 : $MAXNODES; 
+my $BlockSize        = ceil ($NFilesFound/$NBlocks);
+print "#: GPG Array script will use $NBlocks of size $BlockSize\n";       
 
 my $GPGCommand = $GPGBaseScript;
 #Substitute in the values needed (i.e. 'Fill in the form'
-$GPGCommand =~ s/NFILES_TAG/$NFilesFound/;
+$GPGCommand =~ s/NBLOCK_TAG/$NBlocks/;   
 $GPGCommand =~ s/KEYS_TAG/$GPGKeyString/;
 $GPGCommand =~ s/GPG_TIME_TAG/$StartTime/;
 $GPGCommand =~ s/FILELIST_TAG/$GPGInstructionFile/;
 $GPGCommand =~ s/WD_TAG/$GPGScriptDir/;
+$GPGCommand =~s /BLOCKSIZE_TAG/$BlockSize/;
 open GPGFILE ,">$GPGScriptFile"	or die "Cannot open GPG / SGE Bash file: '$GPGScriptFile'\n";
 
 my ($JobName) = $GPGCommand =~ m/-N (GPG_Tape_.*?)\n/;
