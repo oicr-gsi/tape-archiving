@@ -87,9 +87,15 @@ while (<$INDEXFILE_FH>)  #run through instructions file
 		
 		#my $LineLength = length ($_."\n");
 		
-		my (undef, $Path)	=	split (/\t/,$_);
+		my (undef, $Path, $Size)	=	split (/\t/,$_);
 		chomp ($Path);	#remove the newline from the path
 		
+		# Andrew Code Addition
+		# print out path and file size to std out (redirected to a file)
+		# $Size should represent the current lines related file size
+		print "'$Path' is of size '$Size'\n";		 
+
+
 		#Reset to the start of the line:			
 #		print "D: File Pointer set to: ", tell ($INDEXFILE_FH),"\n";
 		my $BackupLength= length ($_);
