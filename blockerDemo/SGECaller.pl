@@ -3,8 +3,10 @@
 
 Demonstrates the calling of another script 'blockRunner.pl' into which it fills in various values.
 
-If no path is specified on the command line the "find" is done on the directory "./testDir" which should contain
-a few (10 currently) files for demonstration purposes; otherwise the path is used.
+If no path or file is specified on the command line the "find" is done on the directory "./testDir" which should contain
+a few (10 currently) files for demonstration purposes; otherwise the path or file is used.
+
+You can pass either a directory of files you want to compute MD5sums for or a file which contains a list of files you want to compute MD5sums for.
 
 The variable names are deliberately similar to the those in 'indexer.pl' as it assumed that the two code 
 bases will be merged ultimately.
@@ -327,7 +329,12 @@ my $RawIndexFile = "$OutputDir/rawindex.fil";
 print "#: Raw index file is: '$RawIndexFile'\n";
 print "#: Any errors from find will be written to: '$SearchErrorFile'\n";
 
-`find -L $InputPath -type f -size +1c 2> $SearchErrorFile > $RawIndexFile`;
+# Check if given argument is a directory or a file, and act accordingly.
+if (-d $InputPath){
+	`find -L $InputPath -type f -size +1c 2> $SearchErrorFile > $RawIndexFile`;
+} elsif (-f $InputPath) {
+	`cat $InputPath > $RawIndexFile`;
+}
 
 #Check that really happened ;-)
 unless (-e $RawIndexFile )		{die "Cannot find '$RawIndexFile' - assuming find failed\n";}
@@ -350,8 +357,47 @@ Essentially:
 
 =cut
 
+# Remove files from rawIndex.file that have not been modified since 
+# Grab the Time of the last run of this script
+my $TmstmpFile = "$OutputDir/../tmstmp.txt";
+my $TimeVal = 0;
+
+if (-e $TmstmpFile) {
+	$TimeVal = -M $TmstmpFile; # Days since file was last updated (when script was run last)
+
+	# Iterate through rawIndex.file, only keep lines for corresponding files which have been updated since last run of this script
+	my $RawIndexFileTemp = "$OutputDir/rawindex.fil.temp";
+	
+	open my $RAW_INDEX_FILE_FH, "<", $RawIndexFile or die "Cannot open raw index file '$RawIndexFile'\n";
+	open my $RAW_INDEX_FILE_FH_TEMP, ">", $RawIndexFileTemp or die "Cannot write raw index file temp '$RawIndexFileTemp'\n";
+	
+	my $FileModifiedDate = "";  # Days since file in question was last modified
+	
+	while (<$RAW_INDEX_FILE_FH>) {
+		chomp();
+		my ($FilePath) = abs_path ($_);
+		$FileModifiedDate = -M $FilePath;
+		if ($TimeVal > $FileModifiedDate) {
+			print $RAW_INDEX_FILE_FH_TEMP "$_\n";
+		}
+	
+	}
+	
+	close ($RAW_INDEX_FILE_FH_TEMP);
+	close ($RAW_INDEX_FILE_FH);
+
+	# Update the rawIndex.file with the actual files to process
+	`cat $RawIndexFileTemp > $RawIndexFile`;
+	`rm $RawIndexFileTemp`;
+}
 #Just ask bash & wc:
 my $N_Files_wcresult= `wc -l $RawIndexFile`;
+if ($N_Files_wcresult == 0){ # Will just exit the script if no files are to be worked on (due to empty dir or no newly modified files)
+	print "Script will halt due to one of the following:\n";
+	print "1) The directory provided has no files in it\n";
+	print "2) All of the given files have not been modified since last run of this script.  No need to run again.\n";
+	exit;
+}
 my ($N_Files_Total) = $N_Files_wcresult =~ m/^(.+?) /;
 print "#: There are '$N_Files_Total' files to process\n";
 if ($N_Files_Total > $NODES_TO_USE)
@@ -558,7 +604,7 @@ close $CollectorOP_FH;
 my $CollectorLaunchResult = "";
 print "#: Wrote out collector script: '$CollectorScriptFileName'\n";
 if ($SGE_Present ==1)
-	{	$CollectorLaunchResult = `qsub -q spbcrypto $CollectorScriptFileName`; } # Launch the QSub Command 
+	{	$CollectorLaunchResult = `qsub -q spbcrypto $CollectorScriptFileName`; } # Launch the QSub Command
 else
 	{	$CollectorLaunchResult = "No SGE Detected, hence won't / can't launch the collector script\n";	}
 chomp ($CollectorLaunchResult); 

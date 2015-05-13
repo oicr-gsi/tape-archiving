@@ -87,7 +87,7 @@ while (<$INDEXFILE_FH>)  #run through instructions file
 		
 		#my $LineLength = length ($_."\n");
 		
-		my (undef, $Path)	=	split (/\t/,$_);
+		my (undef, $Path, $Size)	=	split (/\t/,$_);
 		chomp ($Path);	#remove the newline from the path
 		
 		#Reset to the start of the line:			
