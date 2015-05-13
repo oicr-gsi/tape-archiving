@@ -144,7 +144,7 @@ foreach my $FileData (@LinesToProcess) {
                         #Note the error:
 			open OUTPUT, ">$ErrorFile" or die "Cannot open output file: '$ErrorFile'\n";
                         chomp($GPGResult);
-			print OUTPUT "$FilePath = $GPGResult Expected: $MD5";
+			print OUTPUT "$FilePath = $GPGResult Expected: $MD5\n";
 			close OUTPUT;
 			exit;           #Exit here is an optimisation as we don't care about the other lines in the file: another instance will process them
         	}
