@@ -132,12 +132,12 @@ foreach my $FileData (@LinesToProcess) {
 
         $FilePath =~ s/ /\\ /g; # Escape spaces
         $FilePath =~ s/([{(})%@])/\\$1/g; # Escape special characters
-        my $GPGCommand = "gpg --lock-never --decrypt $FilePath | md5sum";
+        my $GPGCommand = "gpg --no-random-seed-file --decrypt $FilePath | md5sum";
         $FilePath =~ s/\\//g;   # Un-escape
         print "D: '$GPGCommand'\n"; 
 		my $GPGResult = `$GPGCommand`;
 		print "D: '$GPGResult'";
-		my $ErrorFile = "$ResultOutputDir/$JobID\_$Count\.encrypt-error";
+		my $ErrorFile = "$ResultOutputDir/$JobID\_$Block"."_$Count\.encrypt-error";
 		
 		unless ($GPGResult =~ m/$MD5/)	{ #We bother parsing the output - provided the MD5 sum is there
 
