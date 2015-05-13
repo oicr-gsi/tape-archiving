@@ -114,7 +114,6 @@ my @LinesToProcess;
 my $Count=0;
 while (<INPUTFILE>) {
         $Count++;  #Increment the line counter
-        unless ($Count == $WANTEDLINE)  {       next;   }       #Skip until the line we want:
         if ($Count <= $WantedLine_Start)        {       next;   }       #Skip until the lines we want:
         if ($Count > $WantedLine_End )                  {               last;   }
 
@@ -125,6 +124,7 @@ while (<INPUTFILE>) {
 }
 close INPUTFILE;
 
+$Count = $WantedLine_Start;
 foreach my $FileData (@LinesToProcess) {
         #We try to emulate a command like this:        
         # gpg -d ./real_fs/B/9.file.gpg 2> /dev/null | md5sum
@@ -137,7 +137,7 @@ foreach my $FileData (@LinesToProcess) {
         print "D: '$GPGCommand'\n"; 
 		my $GPGResult = `$GPGCommand`;
 		print "D: '$GPGResult'\n";
-		my $ErrorFile = "$ResultOutputDir/$JobID\_$WANTEDLINE\.encrypt-error";
+		my $ErrorFile = "$ResultOutputDir/$JobID\_$WantedLine_Start\.encrypt-error";
 		
 		unless ($GPGResult =~ m/$MD5/)	{ #We bother parsing the output - provided the MD5 sum is there
 
@@ -147,6 +147,7 @@ foreach my $FileData (@LinesToProcess) {
 			close OUTPUT;
 			exit;           #Exit here is an optimisation as we don't care about the other lines in the file: another instance will process them
         	}
+        $Count++;
         }
 MD5_SCRIPT
 
