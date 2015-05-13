@@ -162,13 +162,13 @@ Hence the order of the fields:
  ? = We can't find the temporary file do counts on...maybe this is a temporary FS glitch and it will repears.  
 
 =cut
-			if (grep (/^$JobID$/,@RelevantJobs))	#Does this exist in the array
-				{		push @Output, join ("\t", $Block, $JobID, "R", $DoneCount,$TotalCount)."\n";		$AllDoneFlag =0;	}	#Job is 'Running'	
-			else
-				{		push @Output, join ("\t", $Block, $JobID, "F", $DoneCount,$TotalCount)."\n";		}						#Job is 'Finished'
+				if (grep (/^$JobID$/,@RelevantJobs))	#Does this exist in the array
+					{		push @Output, join ("\t", $Block, $JobID, "R", $DoneCount,$TotalCount)."\n";		$AllDoneFlag =0;	}	#Job is 'Running'	
+				else
+					{		push @Output, join ("\t", $Block, $JobID, "F", $DoneCount,$TotalCount)."\n";		}						#Job is 'Finished'
 			}
-			else	#The 'index file' (.tab file) didn't exist...so we fill in whatever we have/had and we let the default of '0' be written out for the 'Done Count' / status = "?"   
-			{
+			else { 
+				# The 'index file' (.tab file) didn't exist...so we fill in whatever we have/had and we let the default of '0' be written out for the 'Done Count' / status = "?"   
 						push @Output, join ("\t", $Block, $JobID, "?", 0	,$TotalCount)."\n";				$AllDoneFlag =0;		#Job might be finished... 
 			}
 		
@@ -253,7 +253,12 @@ But we also consider not being able to get the status of a block run "?" as an e
  	close ($JOBTABOP_fh);	
 	if ($AllDoneFlag ==1)
 		{
-		#Clean up: create the main index file; delete the intermediates: 
+		# Create a record of the time run
+		my $dateVal = "`date +%s`";
+                my $dateTime = "`$dateVal` > ../tmstmp.txt";
+                my $tmstmpFile = `$dateTime`;
+		
+		#Clean up: create the main index file; delete the intermediates:
 		my $CollectIndex_CMD = "cat *.tab.tmp > Files.Index 2>&1";
 		my $CollectIndexResult ="";
 		$CollectIndexResult = `$CollectIndex_CMD`;
@@ -269,7 +274,6 @@ But we also consider not being able to get the status of a block run "?" as an e
 	
 	} while (($StartTime + $LIFESPAN) > time);	#Run loop once, then terminate.
 	
-
 print "#Program terminating at:", time,"\n";
 
 
