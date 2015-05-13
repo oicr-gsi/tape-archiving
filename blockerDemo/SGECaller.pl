@@ -583,7 +583,7 @@ foreach my $C_Block (1..$NBlocks)
 	$ThisBlockScriptFileName =~ s/XXX/$C_Block/;
 	print "Launching job: '$C_Block' = $ThisBlockScriptFileName\n";	
 	
-	my $SGECommand = "qsub $ThisBlockScriptFileName"; # removed -q spbcrypto for testing purposes
+	my $SGECommand = "qsub -q spbcrypto $ThisBlockScriptFileName";
 	#print "D: $SGECommand\n";
 	push @SGELaunchCMD_s, $SGECommand;
 	}
@@ -604,7 +604,7 @@ close $CollectorOP_FH;
 my $CollectorLaunchResult = "";
 print "#: Wrote out collector script: '$CollectorScriptFileName'\n";
 if ($SGE_Present ==1)
-	{	$CollectorLaunchResult = `qsub $CollectorScriptFileName`; } # Launch the QSub Command , NOTE: removed -q spbcrypto for testing purposes
+	{	$CollectorLaunchResult = `qsub -q spbcrypto $CollectorScriptFileName`; } # Launch the QSub Command
 else
 	{	$CollectorLaunchResult = "No SGE Detected, hence won't / can't launch the collector script\n";	}
 chomp ($CollectorLaunchResult); 

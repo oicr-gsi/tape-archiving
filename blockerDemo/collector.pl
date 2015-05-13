@@ -90,7 +90,7 @@ At this point we should have a simple list of Job IDs already / still running.
 	unless (-e $JobTabFile)
 		{		sleep ($WAITTIME); next;		}
 #	print "D: Running qstat\n";
-	my $QSTATCommand = "/opt/ogs2011.11/bin/linux-x64/qstat 2>&1 | grep IndMD5 | cut -f1 -d\" \""; # removed -q spbcrypto
+	my $QSTATCommand = "/opt/ogs2011.11/bin/linux-x64/qstat -q spbcrypto 2>&1 | grep IndMD5 | cut -f1 -d\" \"";
 	my @RelevantJobs = `$QSTATCommand`;
 	#Check qstat ran...sometimes the Isilon prevents this (according to IT Helpdesk)
 	if (grep (/error:/, @RelevantJobs))		#In which case we wait - and come back.
