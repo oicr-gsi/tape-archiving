@@ -131,7 +131,7 @@ foreach my $FileData (@LinesToProcess) {
         my ($MD5, $FilePath) = ($$FileData[0], $$FileData[1]);
 
         $FilePath =~ s/ /\\ /g; # Escape spaces
-        $FilePath =~ s/([{|(})%@])/\\$1/g; # Escape special characters
+        $FilePath =~ s/([{(})%@])/\\$1/g; # Escape special characters
         my $GPGCommand = "gpg --decrypt $FilePath | md5sum";
         $FilePath =~ s/\\//g;   # Un-escape
         print "D: '$GPGCommand'\n"; 

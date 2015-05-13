@@ -139,7 +139,7 @@ my $MAXNODES = 100;
 my $BasePath = "";
 #my $OUTDIRTAG = "_out";
 
-=head3 Create the skeleton SGE Script in this next section
+=head3 Create the skeleton SGE Scripts in this next section
 
 Check the real code for the current version, but expect it to be similar to this below in general terms.
 This version uses 'SGE Array Jobs' (against Brent's advice!).
@@ -191,7 +191,7 @@ my $GPGBaseScript = <<'END_SCRIPT';
 
 my $Block=$ENV{"SGE_TASK_ID"};     #This is passed as an environment variable by SGE / Qsub
 
-open INPUTFILE , "FILELIST_TAG";
+open INPUTFILE , "FILELIST_TAG" or die "Couldn't read from FILELIST_TAG";
 
 my $BlockSize = "BLOCKSIZE_TAG";
 
@@ -207,26 +207,54 @@ while (<INPUTFILE>)
         if ($Count <= $WantedLine_Start)        {       next;   }       #Skip until the lines we want:
         if ($Count > $WantedLine_End )                  {               last;   }
 #Below here only processed for wanted lines:
-        chomp ();               #Strip new lines off 
+        chomp;               #Strip new lines off 
+        s/ /\\ /g; #Escape spaces in file names
+        s/([}{%@])/\\$1/g; # Escape special characters
         my ($Input, $Output) =  split (/\t/,$_);
 #       print "D: $Input ---> $Output\n";
         push @LinesToProcess, [$Input,$Output];
         }
+close INPUTFILE;
 
 foreach my $I_File (@LinesToProcess)
         {
         my ($In, $Out) = ($$I_File[0], $$I_File[1]);    #I.e. first (0th) is the filename, second is it's encrypted version
 #Issue MD5 request (& do reality checks):
-                $In=~s/ /\\ /g; #Escape spaces in file names
-                $In=~s/([{(})%@])/\\$1/g; # Escape special characters
-                $Out=~s/ /\\ /g; #Escape spaces in file names
-                $Out=~s/([{(})%@])/\\$1/g; # Escape special characters
-                
                 # This should be done not too many times in one job, given 100 nodes we may have up to 
-                `gpg --trust-model always KEYS_TAG -o "$Out" -e "$In"`;
+                `gpg --trust-model always --lock-never KEYS_TAG -o "$Out" -e "$In"`;
         }        
 
 END_SCRIPT
+
+=head3 Collector Script 
+ The purpose of this collector script is to wait until all encryptor jobs
+ finish and then run find on 'encrypted' directory and put the list of 
+ encrypted files into a file for further use
+=cut
+
+my $GPGCollectorScriptBase = <<'COLLECTOR_SCRIPT';
+#!/usr/bin/perl
+#$ -cwd
+#$ -S /bin/bash
+#$ -e /dev/null
+#$ -o /dev/null
+#$ -b y
+
+use strict;
+my $WDir                = "WD_TAG";
+my $OutputGpgFile       = "GPGTALLY_TAG";
+
+ #Escape spaces and special characters
+ $WDir=~s/ /\\ /g; #Escape spaces in file names
+ $WDir=~s/([}{%@])/\\$1/g; # Escape special characters
+ $OutputGpgFile=~s/ /\\ /g; #Escape spaces in file names
+ $OutputGpgFile=~s/([}{%@])/\\$1/g; # Escape special characters
+
+ # Really, really simple
+ my $CheckerCommand = "find $WDir -type f > $OutputGpgFile 2>/dev/null";
+ `$CheckerCommand`;
+        
+COLLECTOR_SCRIPT
 
 
 #Mimic this:
@@ -247,8 +275,9 @@ Minimum required diskspace (in percent greater than the initial size: 0.1 = 110%
 
 #If supplied a directory as an 'list of input files' , add this on and try to find a file: 
 my $DEFAULTINDEXFILESUBLOCATION = "/index/Files.md5.RF";
-my $DEFAULTOUTPUTLOCATION		= "/encrypted";
-my $GPGJSONDEFAULT				= "/index/GPG_result.json";
+my $DEFAULTGPGLOGLOCATION       = "/index/Files.encrypted";
+my $DEFAULTOUTPUTLOCATION	= "/encrypted";
+my $GPGJSONDEFAULT		= "/index/GPG_result.json";
 
 #This will get populated by the deductions we make below:
 my $GPGJSONFile = "";
@@ -553,9 +582,9 @@ if (-e $GPGInstructionFile && $ClobberOutput_F ==0 )
 
 #Load a group of things into the JSON structure:
 $JSON_GPG_Struct{"Paths"}{"Script Dir"} 		= $GPGScriptDir;	#JSON Load
-$JSON_GPG_Struct{"Files"}{"Missing Files"} 			= $MissingFiles;		#JSON Load
+$JSON_GPG_Struct{"Files"}{"Missing Files"} 		= $MissingFiles;		#JSON Load
 $JSON_GPG_Struct{"Files"}{"GPG Instructions"} 		= $GPGInstructionFile;		#JSON Load
-$JSON_GPG_Struct{"Files"}{"GPG Script"} 			= $GPGScriptFile;		#JSON Load
+$JSON_GPG_Struct{"Files"}{"GPG Script"} 		= $GPGScriptFile;		#JSON Load
 
 =head2 Do timestamp
 
@@ -839,7 +868,7 @@ close GPGFILE;
 
 =head2 Launch GPG jobs:
 
-Stunning anti-climatic really... 
+ Stunning anti-climatic really... 
 
 =cut 
 my $GPGLaunchResult = `qsub -q spbcrypto $GPGScriptFile`;
@@ -853,11 +882,36 @@ $QStatResult=~ s/[\n\s]+$//g;
 $QStatResult  =~ s/[\r\n]/\n#:  /g;
 print "#:   $QStatResult#\n#\n";
 
-$JSON_GPG_Struct{"GPG Job"}{"Launch Result"}		= $GPGLaunchResult;
+#$JSON_GPG_Struct{"GPG Job"}{"Launch Result"}		= $GPGLaunchResult;
 #
-#
+# Launch Collector script
 #
 ######
+
+my $GPGCollectorScript = $GPGCollectorScriptBase;
+my $GPGLogFile         = $OutputDir.$DEFAULTGPGLOGLOCATION;
+my $time = time;
+
+#Substitute these in:
+$GPGCollectorScript =~s/WD_TAG/$OutputEncryptedDir/g;
+$GPGCollectorScript =~s/GPGTALLY_TAG/$GPGLogFile/g;
+
+my $GPGCollectorScriptFile = "$GPGScriptDir/CollectorGPG.pl";
+open COLLECTORGPG, ">$GPGCollectorScriptFile" or die "Cannot open '$GPGCollectorScriptFile'\n";
+print COLLECTORGPG $GPGCollectorScript;
+close COLLECTORGPG;
+`chmod +x $GPGCollectorScriptFile`;
+print "D: Written out '$GPGCollectorScriptFile'\n";
+
+#die "HIT BLOCK!\n";
+
+#Build the QSub command:
+#Ultimately add back in: -o /dev/null -e /dev/null 
+my $GPGCollectorCommand = "qsub -q spbcrypto -hold_jid $JobName -N GPG_COL_$time $GPGCollectorScriptFile"; 
+print "D: Command is $GPGCollectorCommand\n";
+print "#:   Launching Collector Job#\n#\n";
+`$GPGCollectorCommand`;
+
 
 =head2 JSON Report Output
 
