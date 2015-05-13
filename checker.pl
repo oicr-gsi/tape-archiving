@@ -118,7 +118,7 @@ while (<INPUTFILE>) {
         if ($Count > $WantedLine_End )                  {               last;   }
 
         #Below here only processed for wanted lines: 
-        my ($MD5, $FilePath)  = m/^([a-f0-9]{32})[\t\s]+(.+?)[\t\s]+(\d+)$/;
+        my ($MD5, $FilePath)  = m/^([a-f0-9]{32})[\t\s]+(.+?)$/;
         print "D: MD5 = '$MD5'; '$FilePath'\n";
         push @LinesToProcess, [$MD5,$FilePath];
 }
@@ -132,18 +132,19 @@ foreach my $FileData (@LinesToProcess) {
 
         $FilePath =~ s/ /\\ /g; # Escape spaces
         $FilePath =~ s/([{(})%@])/\\$1/g; # Escape special characters
-        my $GPGCommand = "gpg --decrypt $FilePath | md5sum";
+        my $GPGCommand = "gpg --lock-never --decrypt $FilePath | md5sum";
         $FilePath =~ s/\\//g;   # Un-escape
         print "D: '$GPGCommand'\n"; 
 		my $GPGResult = `$GPGCommand`;
-		print "D: '$GPGResult'\n";
-		my $ErrorFile = "$ResultOutputDir/$JobID\_$WantedLine_Start\.encrypt-error";
+		print "D: '$GPGResult'";
+		my $ErrorFile = "$ResultOutputDir/$JobID\_$Count\.encrypt-error";
 		
 		unless ($GPGResult =~ m/$MD5/)	{ #We bother parsing the output - provided the MD5 sum is there
 
                         #Note the error:
 			open OUTPUT, ">$ErrorFile" or die "Cannot open output file: '$ErrorFile'\n";
-			print OUTPUT "$FilePath = $GPGResult\n";
+                        chomp($GPGResult);
+			print OUTPUT "$FilePath = $GPGResult Expected: $MD5";
 			close OUTPUT;
 			exit;           #Exit here is an optimisation as we don't care about the other lines in the file: another instance will process them
         	}
