@@ -209,7 +209,7 @@ while (<INPUTFILE>)
 #Below here only processed for wanted lines:
         chomp;               #Strip new lines off 
         s/ /\\ /g; #Escape spaces in file names
-        s/([}{%@])/\\$1/g; # Escape special characters
+        s/([}{|%@])/\\$1/g; # Escape special characters
         my ($Input, $Output) =  split (/\t/,$_);
 #       print "D: $Input ---> $Output\n";
         push @LinesToProcess, [$Input,$Output];
