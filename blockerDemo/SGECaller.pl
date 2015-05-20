@@ -375,7 +375,7 @@ if (-e $TmstmpFile) {
 	
 	while (<$RAW_INDEX_FILE_FH>) {
 		chomp();
-		my ($FilePath) = abs_path ($_);
+		my ($FilePath) = $_;
 		$FileModifiedDate = -M $FilePath;
 		if ($TimeVal > $FileModifiedDate) {
 			print $RAW_INDEX_FILE_FH_TEMP "$_\n";
@@ -460,7 +460,7 @@ while (<$RAW_INDEXFILE_FH>)
 	#print "D: $Counter\t$C_Block\t$Tally\t$_\n";	
 	
 	 
-	my ($PathName) = abs_path ($_);	#The only thing on the line is the path (full or otherwise we don't care at this point)	
+	my ($PathName) = $_; #abs_path ($_);	#The only thing on the line is the path (full or otherwise we don't care at this point)	
 	#Build the new output line:
 	my $Line=	"-"x32 .
 				"\t".
@@ -583,7 +583,7 @@ foreach my $C_Block (1..$NBlocks)
 	$ThisBlockScriptFileName =~ s/XXX/$C_Block/;
 	print "Launching job: '$C_Block' = $ThisBlockScriptFileName\n";	
 	
-	my $SGECommand = "qsub -q spbcrypto $ThisBlockScriptFileName";
+	my $SGECommand = "qsub $ThisBlockScriptFileName"; # -q spbcrypto
 	#print "D: $SGECommand\n";
 	push @SGELaunchCMD_s, $SGECommand;
 	}
@@ -604,7 +604,7 @@ close $CollectorOP_FH;
 my $CollectorLaunchResult = "";
 print "#: Wrote out collector script: '$CollectorScriptFileName'\n";
 if ($SGE_Present ==1)
-	{	$CollectorLaunchResult = `qsub -q spbcrypto $CollectorScriptFileName`; } # Launch the QSub Command
+	{	$CollectorLaunchResult = `qsub $CollectorScriptFileName`; } # Launch the QSub Command, -q spbcrypto
 else
 	{	$CollectorLaunchResult = "No SGE Detected, hence won't / can't launch the collector script\n";	}
 chomp ($CollectorLaunchResult); 
