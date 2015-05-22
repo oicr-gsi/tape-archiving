@@ -51,7 +51,7 @@ $|=1;
 
 my $JobTabFile = "JobRecord.tab";
 #print "D: Working directory is: '",`pwd`,"\n";
-unless (-e $JobTabFile) {	die "Couldn't find the job record tab '$JobTabFile'\n";}
+#unless (-e $JobTabFile) {	die "Couldn't find the job record tab '$JobTabFile'\n";} 
 
 =head2 Read in the table file to get the Start time
 
@@ -60,7 +60,15 @@ unless (-e $JobTabFile) {	die "Couldn't find the job record tab '$JobTabFile'\n"
 #JobName=\t$GenericJobName\n";	#The job name; so we can filter by it...if needed
 print $JobRecordFile "$C_Block\t$JobID\tS\n"; 		#Print the result to the job ID file
 
-=cut  
+=cut 
+
+while(){
+	if (-e $JobTabFile) {
+		last;
+	} else {
+		sleep ($WAITTIME);
+	}       
+}      
 
 open my $JOBTAB_fh, "<", $JobTabFile or die "Couldn't open the job record tab '$JobTabFile' (but could see it)\n";
 
@@ -70,7 +78,7 @@ while (<$JOBTAB_fh>)	#This is probably unnecessary as the jobname is on the firs
 		{	$StartTime = $1; $JobName = "IndMD5R\_$StartTime"; last;}
 	}
 close ($JOBTAB_fh);
-#print "D: Start Time: '$StartTime' & '$JobName'\n";
+print "D: Start Time: '$StartTime' & '$JobName'\n";
 
 =head2 Start main loop
 
@@ -78,7 +86,7 @@ close ($JOBTAB_fh);
 
 =cut
 
-do 	#Should (continue) to execute?   We run once then test this condition to decide on 2nd or more:  while (($StartTime + $LIFESPAN) > time) 
+while (($StartTime + $LIFESPAN) > time) 	#Should (continue) to execute?   We run once then test this condition to decide on 2nd or more:  while (($StartTime + $LIFESPAN) > time) 
 	{
 		
 =head3 Run qstat to capture the job IDs to pick through  
@@ -87,8 +95,8 @@ We filter out the worst of the junk by piping through grep & cut
 At this point we should have a simple list of Job IDs already / still running.
 
 =cut 
-	unless (-e $JobTabFile)
-		{		sleep ($WAITTIME); next;		}
+	#unless (-e $JobTabFile)
+	#	{		sleep ($WAITTIME); next;		}
 #	print "D: Running qstat\n";
 	my $QSTATCommand = "/opt/ogs2011.11/bin/linux-x64/qstat 2>&1 | grep IndMD5 | cut -f1 -d\" \""; #-q spbcrypto
 	my @RelevantJobs = `$QSTATCommand`;
@@ -149,7 +157,7 @@ Hence the order of the fields:
 		my $IndexFile = "Indx_$Block.tab.tmp";
 		if (-e $IndexFile)	#If the index file does exist then...there is something strange going on - but beyond us to fix it.
 			{
-			my $DoneCommand= "cut -f1 $IndexFile | grep -v \"\\-\\-\" | wc -l";
+			my $DoneCommand= "cut -f1 $IndexFile | grep -v -- '\-\-' | wc -l"; #"cut -f1 $IndexFile | grep -v \"\\-\\-\" | wc -l";
 #			print "D: Done Command: '$DoneCommand'\n"; 
 			$DoneCount = `$DoneCommand`;	#Anything with an MD5 won't have a two "--" next to each other		
 			#Strip off the new lines:			
@@ -162,7 +170,7 @@ Hence the order of the fields:
  ? = We can't find the temporary file do counts on...maybe this is a temporary FS glitch and it will repears.  
 
 =cut
-				if (grep (/^$JobID$/,@RelevantJobs))	#Does this exist in the array
+				if (grep (/^$JobID$/,@RelevantJobs) )	#Does this exist in the array
 					{		push @Output, join ("\t", $Block, $JobID, "R", $DoneCount,$TotalCount)."\n";		$AllDoneFlag =0;	}	#Job is 'Running'	
 				else
 					{		push @Output, join ("\t", $Block, $JobID, "F", $DoneCount,$TotalCount)."\n";		}						#Job is 'Finished'
@@ -272,7 +280,7 @@ But we also consider not being able to get the status of a block run "?" as an e
 #	exit;
 	sleep ($WAITTIME);
 	
-	} while (($StartTime + $LIFESPAN) > time);	#Run loop once, then terminate.
+	} #while (($StartTime + $LIFESPAN) > time);	#Run loop once, then terminate.
 	
 print "#Program terminating at:", time,"\n";
 

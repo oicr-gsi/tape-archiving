@@ -8,15 +8,20 @@
 # Sample Usage:
 # ./seqWareMD5Updater.pl <FPR_PATH>
 # Example:
-# ./seqWareMD5Updater.pl ./files/fpr-2015-05-15.txt
+# ./seqWareMD5Updater.pl /files/fpr-2015-05-15.txt
 
-# Last Modified: May 19, 2015 by Andrew Duncan
+# Last Modified: May 22, 2015 by Andrew Duncan
 
 use strict;
 use warnings;
 
 use Cwd 'abs_path';
 use File::Path qw(make_path remove_tree);
+
+# Redirect error stream to stderr.log
+open(STDERR, ">>stderr.log") or die "Failed to open error log file";
+`date > stderr.log`;
+
 
 # Set up output dir (timestamp)
 my $OutputDir = `pwd`;
@@ -33,6 +38,7 @@ make_path ($OutputDir) or die "$@";
 
 use DBI;
 
+
 # Set up database information
 my $dbname = "seqware_meta_db_1_1_0_150429";
 my $hostname = "hsqwstage-www2.hpc";
@@ -47,8 +53,7 @@ my $Length = @ARGV; # Number of inputs
 
 # Check that the correct number of arguments have been provided
 if ( $Length != 1 ) {
-	print "You have entered $Length argument(s). 1 argument is required to run.\n" ;
-	exit;
+	die "You have entered $Length argument(s). 1 argument is required to run.\n" ;
 }
 
 # Get the absolute path of File Provenance Report
@@ -77,16 +82,16 @@ print "$OutputDir/FilePath.txt\n";
 
 print "Files created.\n";
 
-# Call SGEcaller Script
+# Call SGEcaller Script to compute MD5 and file sizes for given files
 print "Calculating MD5sums and file sizes for files in the File Provenance Report...\n";
 `./SGECaller.pl "$OutputDir"/FilePath.txt`;
 
 my $MD5File = $MD5OutputDir . "/Files.Index";
 my $copyMD5File = $OutputDir . "/Files.Index";
 
-# Ensure that File.Input exists before using it 
+# Ensure that Files.Input exists before using it 
 while (  ) {
-	if (-e $MD5File) {
+	if ( -e $MD5File ) {
 		last;
 	}
 	sleep(2); # Wait 2 seconds
@@ -112,7 +117,12 @@ while ( my $LineA = <$MD5_FILE_FH> ) { # MD5_PATH_SIZE
 		my ( $SWID, $PathB ) = split (/\t/,$LineB);
 		if ( $PathA eq $PathB ) {
 			# Update SQL table with MD5 and file size
-			$dbh->do('UPDATE file SET size = ?, md5sum = ? WHERE sw_accession = ?', undef, $Size, $MD5, $SWID);
+			my $Count = $dbh->selectrow_array('SELECT count(*) FROM file WHERE FILE_PATH = ?', undef, $PathA); 
+			if ($Count == 1) {
+				$dbh->do('UPDATE file SET size = ?, md5sum = ? WHERE sw_accession = ?', undef, $Size, $MD5, $SWID);
+			} else {
+				print STDERR "Could not find file $PathA in database.\n";
+			}
 			last;
 		}
 	}

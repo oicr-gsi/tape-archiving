@@ -331,7 +331,7 @@ print "#: Any errors from find will be written to: '$SearchErrorFile'\n";
 
 # Check if given argument is a directory or a file, and act accordingly.
 if (-d $InputPath){
-	`find -L $InputPath -type f -size +1c 2> $SearchErrorFile > $RawIndexFile`;
+	`find -L $InputPath -type f -size +1c -print 2> $SearchErrorFile > $RawIndexFile`;
 } elsif (-f $InputPath) {
 	`cat $InputPath > $RawIndexFile`;
 }
@@ -568,7 +568,7 @@ foreach my $C_Block (1..$NBlocks)
  
 my $SGE_Present =0;
 
-if (`qstat -l sbpcrypto 2>&1` =~ m/error:/)
+if (`qstat 2>&1` =~ m/error:/) #-l sbpcrypto
 	{	print "FAILED: qstat (no access to SGE queues?)\n";	}
 	else
 	{	print "# PASSED: qstat (I have access to SGE queue)\n"; $SGE_Present =1;}
@@ -628,10 +628,11 @@ Initially we are parsing lines such as this for the job ID:
 =cut
 #Open the JobRecord.tab file:
 	my $JobRecordFile = "$OutputDir/JobRecord.tab";
-	open my $JobRecord_FH, ">", "$JobRecordFile" or die "Cannot open '$JobRecordFile'\n";
+	#open my $JobRecord_FH, ">", "$JobRecordFile" or die "Cannot open '$JobRecordFile'\n";
 	my $GenericJobName = "IndMD5R\_$StartTime"; #This is the base of the job names we will be monitoring; though the collector uses formal IDs
-	print $JobRecord_FH "#JobName=\t$GenericJobName\n";	#The job name; so we can filter by it...if needed
-
+	#print $JobRecord_FH "#JobName=\t$GenericJobName\n";	#The job name; so we can filter by it...if needed
+	my @JobTabArray;
+	push @JobTabArray, "#JobName=\t$GenericJobName\n";
 	if ($SGE_Present ==1)
 		{
 		#Open the 'Job Record file' to store the job IDs we launch
@@ -648,16 +649,21 @@ Initially we are parsing lines such as this for the job ID:
 			my ($JobID) = $SGEResult =~ m/Your job (\d+?) \(/;
 			$JobID ||= 0;	#Set a default of zero if we couldn't parse it for whatever reason:	
 	
-			print $JobRecord_FH join ("\t", $C_Block, $JobID, "R", 0, $BlockCounts{$C_Block}), "\n";
+			#print $JobRecord_FH join ("\t", $C_Block, $JobID, "R", 0, $BlockCounts{$C_Block}), "\n";
+			push @JobTabArray, join ("\t", $C_Block, $JobID, "R", 0, $BlockCounts{$C_Block}), "\n";
 			$C_Block ++;	#Increment the block counter
 			}
-		print $JobRecord_FH "RUNNING\n";	#put in this initial marker
+		push @JobTabArray, "RUNNING\n";
+		#print $JobRecord_FH "RUNNING\n";	#put in this initial marker
 		
 		}
 #	print "D: Terminating after the first launch until demostration complete\n";	last;
 	 
 	else
 		{	print "No SGE Detected, hence can't launch.\n";	
-			print $JobRecord_FH "FINISHED_WITH_ERRORS\n";	#put in this initial marker; as we aren't launching jobs we can't change this.
+#			print $JobRecord_FH "FINISHED_WITH_ERRORS\n";	#put in this initial marker; as we aren't launching jobs we can't change this.
 		}
+	
+	open my $JobRecord_FH, ">", "$JobRecordFile" or die "Cannot open '$JobRecordFile'\n";
+	print $JobRecord_FH @JobTabArray;
 	close $JobRecord_FH;

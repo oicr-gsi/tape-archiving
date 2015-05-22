@@ -4,15 +4,16 @@
 
 # This should be run per project, it should not be run for multiple.  You must pass this script the name of the project
 # and the input file
+# The input file will be of the same format as the Files.Index file produced from SGECaller.pl (MD5<tab>AbsoluteFilePath<tab>FileSize)
 
-# Please note that file paths listed in the File.Index input file must be absolute paths, since they are uniq
+# Please note that file paths listed in the File.Index input file must be absolute paths, since they are unique
 
 # ./nonSeqWareMD5Updater.pl <Project_Name> <File.Index_Path>
 # For example:
 # Project is lungcancer
 # ./nonSeqWareMD5Updater.pl lungcancer ./lungcancer/output/File.Index
 
-# Last Modified: May 19, 2015 by Andrew Duncan
+# Last Modified: May 22, 2015 by Andrew Duncan
 
 use strict;
 use warnings;
@@ -24,10 +25,13 @@ use Time::localtime;
 
 my $Length = @ARGV; # Number of inputs
 
+# Redirect error stream to stderr.log
+open(STDERR, ">>stderr.log") or die "Failed to open error log file";
+`date > stderr.log`;
+
 # Check that the correct number of arguments have been provided
 if ( $Length != 2 ) {
-	print "You have entered $Length argument(s). 2 arguments are required to run.\n" ;
-	exit;
+	die "You have entered $Length argument(s). 2 arguments are required to run.\n" ;
 }
 
 # Get location of File.Index
