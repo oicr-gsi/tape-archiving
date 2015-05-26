@@ -362,7 +362,7 @@ Essentially:
 my $TmstmpFile = "$OutputDir/../tmstmp.txt";
 my $TimeVal = 0;
 
-if (-e $TmstmpFile) {
+if (-e $TmstmpFile) { # The tmstmp file is not created currently, as this feature is still in testing
 	$TimeVal = -M $TmstmpFile; # Days since file was last updated (when script was run last)
 
 	# Iterate through rawIndex.file, only keep lines for corresponding files which have been updated since last run of this script

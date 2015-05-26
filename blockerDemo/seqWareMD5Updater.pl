@@ -44,7 +44,7 @@ my $dbname = "seqware_meta_db_1_1_0_150429";
 my $hostname = "hsqwstage-www2.hpc";
 my $dsn = "dbi:Pg:dbname=$dbname;host=$hostname";
 my $user = "hsqwstage2_rw";
-my $password = "lxf4VkHQ";
+my $password = "";
 
 # Connect to database
 my $dbh = DBI->connect($dsn, $user, $password, { AutoCommit => 1 }) or die "Can't connect to the database: $DBI::errstr\n";
@@ -112,6 +112,10 @@ while ( my $LineA = <$MD5_FILE_FH> ) { # MD5_PATH_SIZE
 	chomp( $LineA );
 	my ( $MD5, $PathA, $Size ) = split (/\t/,$LineA);
 	seek $FILE_SWID_PATH_FH, 0, 0; # This may not be required (Removing might improve efficiency)
+	if ( index( $MD5, "--" ) == -1) {
+		`echo $LineA >> stderr.log`;
+		next;
+	}
 	while ( my $LineB = <$FILE_SWID_PATH_FH> ) { # SWID_PATH
 		chomp( $LineB );
 		my ( $SWID, $PathB ) = split (/\t/,$LineB);

@@ -45,7 +45,7 @@ my $dbname = "seqware_meta_db_1_1_0_150429";
 my $hostname = "hsqwstage-www2.hpc";
 my $dsn = "dbi:Pg:dbname=$dbname;host=$hostname";
 my $user = "hsqwstage2_rw";
-my $password = "lxf4VkHQ";
+my $password = "";
 
 # Connect to database
 my $dbh = DBI->connect($dsn, $user, $password, { AutoCommit => 1 }) or die "Can't connect to the database: $DBI::errstr\n";
@@ -57,7 +57,7 @@ my $Project = $ARGV[0];
 open my $MD5_FILE_FH, '<', $InputFile or die "Can't open file '$InputFile'\n";
 
 # Iterate through MD5/FileSize file (File.Index)
-print "Inserting/updating SeqWare database...\n";
+print "Updating SeqWare database...\n";
 while ( <$MD5_FILE_FH> ) {
 	chomp();
 	my ($MD5, $Path, $Size) = split (/\t/,$_);
@@ -76,13 +76,18 @@ while ( <$MD5_FILE_FH> ) {
 		$Last_Seen = `date "+%F %T"`;
 	}
 	
-	# Check if file is already in table or not
-	if ( $Count == 0 ) { # File does not already exist in the table, run insert command
-		$dbh->do('INSERT INTO reporting.file (file_path, file_size, md5sum, project, last_seen) VALUES (?,?,?,?,?)',
-       		 undef, $Path, $Size, $MD5, $Project, $Last_Seen);
+	# Check if an MD5sum was calculated
+	if ( index( $MD5, "--" ) == -1) {		
+		# Check if file is already in table or not
+		if ( $Count == 0 ) { # File does not already exist in the table, run insert command
+			$dbh->do('INSERT INTO reporting.file (file_path, file_size, md5sum, project, last_seen) VALUES (?,?,?,?,?)',
+       			 undef, $Path, $Size, $MD5, $Project, $Last_Seen);
 	
-	} else { # File exists in the table, run update command
-		$dbh->do('UPDATE reporting.file SET FILE_SIZE = ?, MD5SUM = ?, LAST_SEEN = ? WHERE FILE_PATH = ?', undef, $Size, $MD5, $Last_Seen, $Path);
+		} else { # File exists in the table, run update command
+			$dbh->do('UPDATE reporting.file SET FILE_SIZE = ?, MD5SUM = ?, LAST_SEEN = ? WHERE FILE_PATH = ?', undef, $Size, $MD5, $Last_Seen, $Path);
+		}
+	} else {
+		`echo $_ >> stderr.log`;
 	}
 }
 
