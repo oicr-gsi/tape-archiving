@@ -373,6 +373,8 @@ my $RawIndexFileTemp = "$OutputDir/rawindex.fil.temp";
 open my $RAW_INDEX_FILE_FH, "<", $RawIndexFile or die "Cannot open raw index file '$RawIndexFile'\n";
 open my $RAW_INDEX_FILE_FH_TEMP, ">", $RawIndexFileTemp or die "Cannot write raw index file temp '$RawIndexFileTemp'\n";
 
+my $RunTimeDate = `date +"%F %T"`;
+
 while (<$RAW_INDEX_FILE_FH>) {
 	chomp();
 	my ($FilePath) = $_;
@@ -388,10 +390,12 @@ while (<$RAW_INDEX_FILE_FH>) {
 			my $LastRunEpoch = `date -d "$row[0]" '+%s'`;
 			if ($LastRunEpoch < $LastModifiedTime) {
 				print $RAW_INDEX_FILE_FH_TEMP "$_\n";
+				$dbh->do('UPDATE md5_size_last_run SET last_run = ? WHERE file_path = ?', undef, $RunTimeDate, $FilePath);
 			}
 		}
 	} else { # If file does not exist in DB
 		print $RAW_INDEX_FILE_FH_TEMP "$_\n";
+		$dbh->do('INSERT INTO md5_size_last_run (file_path, last_run) VALUES (?,?)', undef, $FilePath, $RunTimeDate);
 	}
 }
 
@@ -681,32 +685,4 @@ Initially we are parsing lines such as this for the job ID:
 	open my $JobRecord_FH, ">", "$JobRecordFile" or die "Cannot open '$JobRecordFile'\n";
 	print $JobRecord_FH @JobTabArray;
 	close $JobRecord_FH;
-
-while (! -e "$OutputDir/Files.Index"){
-	sleep(3);
-}
-
-# Connect to database
-my $dbh = DBI->connect($dsn, $user, $password, { AutoCommit => 1 }) or die "Can't connect to the database: $DBI::errstr\n";
-
-# Update last run table in database
-open my $RAW_INDEX_FILE_FH, "<", $RawIndexFile or die "Cannot open raw index file '$RawIndexFile'\n";
-
-my $RunTimeDate = `date +"%F %T"`;
-while (<$RAW_INDEX_FILE_FH>) {
-	chomp();
-	my $FilePath = $_;
-	my $Count = $dbh->selectrow_array('SELECT count(*) FROM md5_size_last_run WHERE FILE_PATH = ?', undef, $FilePath);
-
-	if ($Count > 0) {
-		$dbh->do('UPDATE md5_size_last_run SET last_run = ? WHERE file_path = ?', undef, $RunTimeDate, $FilePath);
-	} else {
-		$dbh->do('INSERT INTO md5_size_last_run (file_path, last_run) VALUES (?,?)', undef, $FilePath, $RunTimeDate);
-	}
-
-}
-close ($RAW_INDEX_FILE_FH);
-
-# Disconnect from database
-$dbh->disconnect;
 

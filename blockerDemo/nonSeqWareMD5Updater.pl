@@ -75,10 +75,11 @@ print "Calculating MD5sums and file sizes for files in the given directory...\n"
 my $MD5File = $MD5OutputDir . "/Files.Index";
 my $RawIndex = $MD5OutputDir . "/rawindex.fil";
 
-if (-z "$RawIndex") {
-	print "No files have been added or modified since last run!\n";
-	exit;
+if ( -z "$RawIndex") {
+        print "No files have been added or modified since last run!\n";
+        exit;
 }
+
 
 # Ensure that Files.Input exists before using it
 while (  ) {
