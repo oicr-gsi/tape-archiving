@@ -234,6 +234,8 @@ use File::Path qw(make_path remove_tree);	#Manipulate paths 2
 use File::Spec;								#Manipulate paths 3
 use Cwd 'abs_path';						#Recurse paths back to their 'source'
 use File::Temp qw/ tempfile tempdir /;
+use DBI;
+use Time::Local;
 
 #The constants / programmable servicable parts:
 
@@ -248,13 +250,21 @@ my $DEFBLOCK_SIZE = 4;		#Number of jobs per grid job.
 
 my $BlockSize = $DEFBLOCK_SIZE;	#Likely code will change this value
 
-
-
 my $InputPath = shift @ARGV;	#A way to direct the input program elsewhere: 
 
 unless (defined $InputPath) {	$InputPath  = "./testDir";	}	
 
 unless (-e $InputPath)	{	die "Cannot find input location: '$InputPath'\n";	}
+
+# Set up database information
+my $dbname = "seqware_meta_db_1_1_0_150429";
+my $hostname = "hsqwstage-www2.hpc";
+my $dsn = "dbi:Pg:dbname=$dbname;host=$hostname";
+my $user = "hsqwstage2_rw";
+my $password = "lxf4VkHQ";
+
+# Connect to database
+my $dbh = DBI->connect($dsn, $user, $password, { AutoCommit => 1 }) or die "Can't connect to the database: $DBI::errstr\n";
 
 =head2 Get the runner script off disk where it is easier to edit:
 
@@ -358,38 +368,42 @@ Essentially:
 =cut
 
 # Remove files from rawIndex.file that have not been modified since 
-# Grab the Time of the last run of this script
-my $TmstmpFile = "$OutputDir/../tmstmp.txt";
-my $TimeVal = 0;
+my $RawIndexFileTemp = "$OutputDir/rawindex.fil.temp";
 
-if (-e $TmstmpFile) { # The tmstmp file is not created currently, as this feature is still in testing
-	$TimeVal = -M $TmstmpFile; # Days since file was last updated (when script was run last)
+open my $RAW_INDEX_FILE_FH, "<", $RawIndexFile or die "Cannot open raw index file '$RawIndexFile'\n";
+open my $RAW_INDEX_FILE_FH_TEMP, ">", $RawIndexFileTemp or die "Cannot write raw index file temp '$RawIndexFileTemp'\n";
 
-	# Iterate through rawIndex.file, only keep lines for corresponding files which have been updated since last run of this script
-	my $RawIndexFileTemp = "$OutputDir/rawindex.fil.temp";
+while (<$RAW_INDEX_FILE_FH>) {
+	chomp();
+	my ($FilePath) = $_;
+	my $LastModifiedTime = `stat -c %Z $FilePath`;
 	
-	open my $RAW_INDEX_FILE_FH, "<", $RawIndexFile or die "Cannot open raw index file '$RawIndexFile'\n";
-	open my $RAW_INDEX_FILE_FH_TEMP, ">", $RawIndexFileTemp or die "Cannot write raw index file temp '$RawIndexFileTemp'\n";
+	my $Count = $dbh->selectrow_array('SELECT count(*) FROM md5_size_last_run WHERE FILE_PATH = ?', undef, $FilePath);
 	
-	my $FileModifiedDate = "";  # Days since file in question was last modified
-	
-	while (<$RAW_INDEX_FILE_FH>) {
-		chomp();
-		my ($FilePath) = $_;
-		$FileModifiedDate = -M $FilePath;
-		if ($TimeVal > $FileModifiedDate) {
-			print $RAW_INDEX_FILE_FH_TEMP "$_\n";
+	if ($Count > 0) { # If file exists in DB
+		my $sql = 'SELECT last_run FROM md5_size_last_run WHERE FILE_PATH = ?';
+		my $sth = $dbh->prepare($sql);
+		$sth->execute($FilePath);
+		while (my @row = $sth->fetchrow_array) {
+			my $LastRunEpoch = `date -d "$row[0]" '+%s'`;
+			if ($LastRunEpoch < $LastModifiedTime) {
+				print $RAW_INDEX_FILE_FH_TEMP "$_\n";
+			}
 		}
-	
+	} else { # If file does not exist in DB
+		print $RAW_INDEX_FILE_FH_TEMP "$_\n";
 	}
-	
-	close ($RAW_INDEX_FILE_FH_TEMP);
-	close ($RAW_INDEX_FILE_FH);
-
-	# Update the rawIndex.file with the actual files to process
-	`cat $RawIndexFileTemp > $RawIndexFile`;
-	`rm $RawIndexFileTemp`;
 }
+
+close ($RAW_INDEX_FILE_FH_TEMP);
+close ($RAW_INDEX_FILE_FH);
+
+`cat $RawIndexFileTemp > $RawIndexFile`;
+`rm $RawIndexFileTemp`;
+
+# Disconnect from database
+$dbh->disconnect;
+
 #Just ask bash & wc:
 my $N_Files_wcresult= `wc -l $RawIndexFile`;
 if ($N_Files_wcresult == 0){ # Will just exit the script if no files are to be worked on (due to empty dir or no newly modified files)
@@ -667,3 +681,32 @@ Initially we are parsing lines such as this for the job ID:
 	open my $JobRecord_FH, ">", "$JobRecordFile" or die "Cannot open '$JobRecordFile'\n";
 	print $JobRecord_FH @JobTabArray;
 	close $JobRecord_FH;
+
+while (! -e "$OutputDir/Files.Index"){
+	sleep(3);
+}
+
+# Connect to database
+my $dbh = DBI->connect($dsn, $user, $password, { AutoCommit => 1 }) or die "Can't connect to the database: $DBI::errstr\n";
+
+# Update last run table in database
+open my $RAW_INDEX_FILE_FH, "<", $RawIndexFile or die "Cannot open raw index file '$RawIndexFile'\n";
+
+my $RunTimeDate = `date +"%F %T"`;
+while (<$RAW_INDEX_FILE_FH>) {
+	chomp();
+	my $FilePath = $_;
+	my $Count = $dbh->selectrow_array('SELECT count(*) FROM md5_size_last_run WHERE FILE_PATH = ?', undef, $FilePath);
+
+	if ($Count > 0) {
+		$dbh->do('UPDATE md5_size_last_run SET last_run = ? WHERE file_path = ?', undef, $RunTimeDate, $FilePath);
+	} else {
+		$dbh->do('INSERT INTO md5_size_last_run (file_path, last_run) VALUES (?,?)', undef, $FilePath, $RunTimeDate);
+	}
+
+}
+close ($RAW_INDEX_FILE_FH);
+
+# Disconnect from database
+$dbh->disconnect;
+

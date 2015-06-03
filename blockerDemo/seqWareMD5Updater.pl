@@ -44,7 +44,7 @@ my $dbname = "seqware_meta_db_1_1_0_150429";
 my $hostname = "hsqwstage-www2.hpc";
 my $dsn = "dbi:Pg:dbname=$dbname;host=$hostname";
 my $user = "hsqwstage2_rw";
-my $password = "";
+my $password = "lxf4VkHQ";
 
 # Connect to database
 my $dbh = DBI->connect($dsn, $user, $password, { AutoCommit => 1 }) or die "Can't connect to the database: $DBI::errstr\n";
@@ -89,6 +89,13 @@ print "Calculating MD5sums and file sizes for files in the File Provenance Repor
 my $MD5File = $MD5OutputDir . "/Files.Index";
 my $copyMD5File = $OutputDir . "/Files.Index";
 
+my $RawIndex = $MD5OutputDir . "/rawindex.fil";
+
+if (-z "$RawIndex") {
+        print "No files have been added or modified since last run!\n";
+        exit;
+}
+
 # Ensure that Files.Input exists before using it 
 while (  ) {
 	if ( -e $MD5File ) {
@@ -112,7 +119,7 @@ while ( my $LineA = <$MD5_FILE_FH> ) { # MD5_PATH_SIZE
 	chomp( $LineA );
 	my ( $MD5, $PathA, $Size ) = split (/\t/,$LineA);
 	seek $FILE_SWID_PATH_FH, 0, 0; # This may not be required (Removing might improve efficiency)
-	if ( index( $MD5, "--" ) == -1) {
+	if ( index( $MD5, "--" ) != -1) {
 		`echo $LineA >> stderr.log`;
 		next;
 	}

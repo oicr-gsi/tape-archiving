@@ -3,17 +3,16 @@
 # A script for updating the seqware database with the MD5sum and file size of the given nonseqware files.
 
 # This should be run per project, it should not be run for multiple.  You must pass this script the name of the project
-# and the input file
-# The input file will be of the same format as the Files.Index file produced from SGECaller.pl (MD5<tab>AbsoluteFilePath<tab>FileSize)
+# and the project directory
 
 # Please note that file paths listed in the File.Index input file must be absolute paths, since they are unique
 
-# ./nonSeqWareMD5Updater.pl <Project_Name> <File.Index_Path>
+# ./nonSeqWareMD5Updater.pl <Project_Name> <Project_Path>
 # For example:
 # Project is lungcancer
-# ./nonSeqWareMD5Updater.pl lungcancer ./lungcancer/output/File.Index
+# ./nonSeqWareMD5Updater.pl lungcancer ./lungcancer
 
-# Last Modified: May 22, 2015 by Andrew Duncan
+# Last Modified: June 3, 2015 by Andrew Duncan
 
 use strict;
 use warnings;
@@ -34,7 +33,12 @@ if ( $Length != 2 ) {
 	die "You have entered $Length argument(s). 2 arguments are required to run.\n" ;
 }
 
-# Get location of File.Index
+# Set up output dir
+my $MD5OutputDir = `pwd`;
+chomp ($MD5OutputDir);
+$MD5OutputDir .= "/output";
+
+# Get location of Project directory
 my $InputFile = $ARGV[1];
 chomp( $InputFile );
 $InputFile = abs_path( $InputFile );
@@ -45,7 +49,7 @@ my $dbname = "seqware_meta_db_1_1_0_150429";
 my $hostname = "hsqwstage-www2.hpc";
 my $dsn = "dbi:Pg:dbname=$dbname;host=$hostname";
 my $user = "hsqwstage2_rw";
-my $password = "";
+my $password = "lxf4VkHQ";
 
 # Connect to database
 my $dbh = DBI->connect($dsn, $user, $password, { AutoCommit => 1 }) or die "Can't connect to the database: $DBI::errstr\n";
@@ -53,8 +57,39 @@ my $dbh = DBI->connect($dsn, $user, $password, { AutoCommit => 1 }) or die "Can'
 # Get project name
 my $Project = $ARGV[0];
 
+# Update files that no longer exist
+my $sql = 'SELECT file_path FROM reporting.file WHERE project = ?';
+my $sth = $dbh->prepare($sql);
+
+$sth->execute($Project);
+while (my @row = $sth->fetchrow_array) {
+	if (! -e $row[0]) {
+		$dbh->do('UPDATE reporting.file SET file_size = 0 WHERE file_path = ?', undef, $row[0]);
+	}
+}
+
+# Call SGECaller
+print "Calculating MD5sums and file sizes for files in the given directory...\n";
+`./SGECaller.pl "$InputFile"`;
+
+my $MD5File = $MD5OutputDir . "/Files.Index";
+my $RawIndex = $MD5OutputDir . "/rawindex.fil";
+
+if (-z "$RawIndex") {
+	print "No files have been added or modified since last run!\n";
+	exit;
+}
+
+# Ensure that Files.Input exists before using it
+while (  ) {
+        if ( -e "$MD5File" ) {
+                last;
+        }
+        sleep(2); # Wait 2 seconds
+}
+
 # Open File.Input
-open my $MD5_FILE_FH, '<', $InputFile or die "Can't open file '$InputFile'\n";
+open my $MD5_FILE_FH, '<', $MD5File or die "Can't open file '$MD5File'\n";
 
 # Iterate through MD5/FileSize file (File.Index)
 print "Updating SeqWare database...\n";
@@ -66,15 +101,7 @@ while ( <$MD5_FILE_FH> ) {
 	my $Count = 0;
 	$Count = $dbh->selectrow_array('SELECT count(*) FROM reporting.file WHERE FILE_PATH = ?', undef, $Path);	
 
-	# Last time MD5 script is run is last time file was seen
-	my $Last_Seen = "";
-	$Last_Seen = (stat($MD5_FILE_FH)->mtime);
-	$Last_Seen = `date -d @"$Last_Seen" "+%F %T"`;
-	
-	# If file still exists, then this is now the last seen time
-	if ( -e $Path ) {
-		$Last_Seen = `date "+%F %T"`;
-	}
+	my $Last_Seen = `date "+%F %T"`;
 	
 	# Check if an MD5sum was calculated
 	if ( index( $MD5, "--" ) == -1) {		
