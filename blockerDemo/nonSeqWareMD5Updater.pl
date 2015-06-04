@@ -49,7 +49,7 @@ my $dbname = "seqware_meta_db_1_1_0_150429";
 my $hostname = "hsqwstage-www2.hpc";
 my $dsn = "dbi:Pg:dbname=$dbname;host=$hostname";
 my $user = "hsqwstage2_rw";
-my $password = "lxf4VkHQ";
+my $password = "";
 
 # Connect to database
 my $dbh = DBI->connect($dsn, $user, $password, { AutoCommit => 1 }) or die "Can't connect to the database: $DBI::errstr\n";

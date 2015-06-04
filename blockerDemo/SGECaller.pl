@@ -261,7 +261,7 @@ my $dbname = "seqware_meta_db_1_1_0_150429";
 my $hostname = "hsqwstage-www2.hpc";
 my $dsn = "dbi:Pg:dbname=$dbname;host=$hostname";
 my $user = "hsqwstage2_rw";
-my $password = "lxf4VkHQ";
+my $password = "";
 
 # Connect to database
 my $dbh = DBI->connect($dsn, $user, $password, { AutoCommit => 1 }) or die "Can't connect to the database: $DBI::errstr\n";
@@ -586,7 +586,7 @@ foreach my $C_Block (1..$NBlocks)
  
 my $SGE_Present =0;
 
-if (`qstat 2>&1` =~ m/error:/) #-l sbpcrypto
+if (`qstat -l spbcrypto 2>&1` =~ m/error:/) 
 	{	print "FAILED: qstat (no access to SGE queues?)\n";	}
 	else
 	{	print "# PASSED: qstat (I have access to SGE queue)\n"; $SGE_Present =1;}
@@ -601,7 +601,7 @@ foreach my $C_Block (1..$NBlocks)
 	$ThisBlockScriptFileName =~ s/XXX/$C_Block/;
 	print "Launching job: '$C_Block' = $ThisBlockScriptFileName\n";	
 	
-	my $SGECommand = "qsub $ThisBlockScriptFileName"; # -q spbcrypto
+	my $SGECommand = "qsub -q spbcyrpto $ThisBlockScriptFileName";
 	#print "D: $SGECommand\n";
 	push @SGELaunchCMD_s, $SGECommand;
 	}
@@ -622,7 +622,7 @@ close $CollectorOP_FH;
 my $CollectorLaunchResult = "";
 print "#: Wrote out collector script: '$CollectorScriptFileName'\n";
 if ($SGE_Present ==1)
-	{	$CollectorLaunchResult = `qsub $CollectorScriptFileName`; } # Launch the QSub Command, -q spbcrypto
+	{	$CollectorLaunchResult = `qsub -q spbcrypto $CollectorScriptFileName`; } # Launch the QSub Command
 else
 	{	$CollectorLaunchResult = "No SGE Detected, hence won't / can't launch the collector script\n";	}
 chomp ($CollectorLaunchResult); 
