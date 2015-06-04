@@ -456,7 +456,7 @@ foreach my $C_File (@LinesToProcess)
 	my ($FileName, $Index) = ($$C_File[0], $$C_File[1]);	#I.e. first (0th) is the filename, second is it's index	
 #Issue MD5 request (& do reality checks):
                 $FileName=~s/ /\\ /g; #Escape spaces in file names
-                $FileName=~s/([}{|%@])/\\$1/g; # Escape special characters
+                $FileName=~s/([)(}{|%@\$])/\\$1/g; # Escape special characters
 		my $MD5Result= `md5sum $FileName`;
                 $FileName=~s/\\//g;   #Un-escape
 		unless ($MD5Result =~ m/^[a-f0-9]{32} /)			{next;}		#I.e. create a 'hole' in the output file

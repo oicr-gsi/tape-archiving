@@ -54,8 +54,8 @@ my $timestamp           = time;	        # Two versions of the timestamp
 GetOptions (
 	"index|Index|index=s" 		=> \$MasterIndexLocation,
 	"SubclientName=s" 		=> \$SubclientName,
-	"clobberOK"			=> \$Clobber,
-	"SkipSGECheck|nosgeok"		=> \$SkipSGECheck,
+	"clobber|c"			=> \$Clobber,
+	"noSGEOK|nogrid"		=> \$SkipSGECheck,
  )
 	or usage ("Error in command line arguments\n");
 
