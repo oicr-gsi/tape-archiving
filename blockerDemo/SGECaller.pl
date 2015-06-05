@@ -378,7 +378,7 @@ my $RunTimeDate = `date +"%F %T"`;
 while (<$RAW_INDEX_FILE_FH>) {
 	chomp();
 	my ($FilePath) = $_;
-	my $LastModifiedTime = `stat -c %Z $FilePath`;
+	my $LastModifiedTime = `stat -c %Z $FilePath 2>/dev/null`;
 	
 	my $Count = $dbh->selectrow_array('SELECT count(*) FROM md5_size_last_run WHERE FILE_PATH = ?', undef, $FilePath);
 	
@@ -586,7 +586,7 @@ foreach my $C_Block (1..$NBlocks)
  
 my $SGE_Present =0;
 
-if (`qstat -l spbcrypto 2>&1` =~ m/error:/) 
+if (`qstat 2>&1` =~ m/error:/) # -l sbpcrypto
 	{	print "FAILED: qstat (no access to SGE queues?)\n";	}
 	else
 	{	print "# PASSED: qstat (I have access to SGE queue)\n"; $SGE_Present =1;}
@@ -601,7 +601,7 @@ foreach my $C_Block (1..$NBlocks)
 	$ThisBlockScriptFileName =~ s/XXX/$C_Block/;
 	print "Launching job: '$C_Block' = $ThisBlockScriptFileName\n";	
 	
-	my $SGECommand = "qsub -q spbcyrpto $ThisBlockScriptFileName";
+	my $SGECommand = "qsub $ThisBlockScriptFileName"; # -q spbcrypto
 	#print "D: $SGECommand\n";
 	push @SGELaunchCMD_s, $SGECommand;
 	}
@@ -622,7 +622,7 @@ close $CollectorOP_FH;
 my $CollectorLaunchResult = "";
 print "#: Wrote out collector script: '$CollectorScriptFileName'\n";
 if ($SGE_Present ==1)
-	{	$CollectorLaunchResult = `qsub -q spbcrypto $CollectorScriptFileName`; } # Launch the QSub Command
+	{	$CollectorLaunchResult = `qsub $CollectorScriptFileName`; } # Launch the QSub Command, -q spbcrypto
 else
 	{	$CollectorLaunchResult = "No SGE Detected, hence won't / can't launch the collector script\n";	}
 chomp ($CollectorLaunchResult); 

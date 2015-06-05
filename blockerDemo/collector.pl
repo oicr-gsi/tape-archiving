@@ -100,7 +100,7 @@ At this point we should have a simple list of Job IDs already / still running.
 	#unless (-e $JobTabFile)
 	#	{		sleep ($WAITTIME); next;		}
 #	print "D: Running qstat\n";
-	my $QSTATCommand = "/opt/ogs2011.11/bin/linux-x64/qstat -q spbcrypto 2>&1 | grep IndMD5 | cut -f1 -d\" \"";
+	my $QSTATCommand = "/opt/ogs2011.11/bin/linux-x64/qstat 2>&1 | grep IndMD5 | cut -f1 -d\" \""; # -q spbcrypto
 	my @RelevantJobs = `$QSTATCommand`;
 	#Check qstat ran...sometimes the Isilon prevents this (according to IT Helpdesk)
 	if (grep (/error:/, @RelevantJobs))		#In which case we wait - and come back.
@@ -160,7 +160,10 @@ Hence the order of the fields:
 			{
 			my $DoneCommand= "cut -f1 $IndexFile | grep -v -- '\-\-' | wc -l"; #"cut -f1 $IndexFile | grep -v \"\\-\\-\" | wc -l";
 	#		print "D: Done Command: '$DoneCommand'\n"; 
+			my $RunCommand = "cut -f1 $IndexFile | grep -v -- '\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-' | wc -l";
 			$DoneCount = `$DoneCommand`;	#Anything with an MD5 won't have a two "--" next to each other		
+			my $RunCount = `$RunCommand`;
+			chomp($RunCount);
 			#Strip off the new lines:			
 			chomp ($DoneCount); chomp ($TotalCount);
 			
@@ -171,7 +174,7 @@ Hence the order of the fields:
  ? = We can't find the temporary file do counts on...maybe this is a temporary FS glitch and it will repears.  
 
 =cut
-				if ($DoneCount != $TotalCount)	#Does this exist in the array
+				if ($RunCount < $TotalCount)	#Does this exist in the array
 					{		push @Output, join ("\t", $Block, $JobID, "R", $DoneCount,$TotalCount)."\n";		$AllDoneFlag =0;	}	#Job is 'Running'	
 				else
 					{		push @Output, join ("\t", $Block, $JobID, "F", $DoneCount,$TotalCount)."\n"; 	}						#Job is 'Finished'
