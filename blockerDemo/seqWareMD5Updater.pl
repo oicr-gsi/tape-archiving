@@ -10,7 +10,7 @@
 # Example:
 # ./seqWareMD5Updater.pl /files/fpr-2015-05-15.txt
 
-# Last Modified: May 22, 2015 by Andrew Duncan
+# Last Modified: June 8, 2015 by Andrew Duncan
 
 use strict;
 use warnings;
@@ -21,7 +21,6 @@ use File::Path qw(make_path remove_tree);
 # Redirect error stream to stderr.log
 open(STDERR, ">>stderr.log") or die "Failed to open error log file";
 `date > stderr.log`;
-
 
 # Set up output dir (timestamp)
 my $OutputDir = `pwd`;
@@ -38,16 +37,12 @@ make_path ($OutputDir) or die "$@";
 
 use DBI;
 
-
-# Set up database information
-my $dbname = "seqware_meta_db_1_1_0_150429";
-my $hostname = "hsqwstage-www2.hpc";
-my $dsn = "dbi:Pg:dbname=$dbname;host=$hostname";
-my $user = "hsqwstage2_rw";
-my $password = "";
-
 # Connect to database
-my $dbh = DBI->connect($dsn, $user, $password, { AutoCommit => 1 }) or die "Can't connect to the database: $DBI::errstr\n";
+my $path = `pwd`;
+chomp($path);
+$ENV{PGSYSCONFDIR} = $path;
+
+my $dbh = DBI->connect("dbi:Pg:service=test", undef, undef, { AutoCommit => 1}) or die "Can't connect to the database: $DBI::errstr\n";
 
 my $Length = @ARGV; # Number of inputs
 
@@ -66,19 +61,38 @@ if ( ! -e $FPR ){
 	exit;
 }
 
-# Grab columns (file_path and file_SWID) from FPR, remove the first line (header)
+# Create necessary files from FPR
 print "Grabbing columns from File Provenance Report...\n";
 print "Creating files:\n";
 print "$OutputDir/FileSWIDPath.txt\n";
 print "$OutputDir/FilePath.txt\n";
 
-`cut -f 47,45 "$FPR" > "$OutputDir"/FileSWIDPath.txt`; # Grab FileSWID and FilePath columns
-`tail -n +2 "$OutputDir"/FileSWIDPath.txt > "$OutputDir"/tempFileSWIDPath.txt`; # Remove header
-`cp "$OutputDir"/tempFileSWIDPath.txt "$OutputDir"/FileSWIDPath.txt`;
-`rm "$OutputDir"/tempFileSWIDPath.txt`;
+my $LineCount = 0;
 
-# Create a file with just paths (input for SGECaller.pl)
-`cut -f 2 "$OutputDir"/FileSWIDPath.txt > "$OutputDir"/FilePath.txt`;
+# Create a file with two columns,  File SWID and File Path
+open my $FPR_FH, '<', $FPR or die "Can't open file '$FPR'\n";
+open my $FILE_SWID_PATH_ONE_FH, '>', "$OutputDir/FileSWIDPath.txt" or die "Can't open file '$OutputDir/FileSWIDPath.txt'\n";
+while (my $line = <$FPR_FH>) {
+	if ($LineCount > 0) {
+		my @fields = split ("\t", $line);
+		print $FILE_SWID_PATH_ONE_FH "$fields[46]\t$fields[44]\n";
+	}
+	$LineCount += 1;
+}
+
+close ($FILE_SWID_PATH_ONE_FH);
+close ($FPR_FH);
+
+# Create a file which contains one column of all the given file paths
+open my $FILE_SWID_PATH_TWO_FH, '<', "$OutputDir/FileSWIDPath.txt" or die "Can't open file '$OutputDir/FileSWIDPath.txt'\n";
+open my $FILE_PATH_FH, '>', "$OutputDir/FilePath.txt" or die "Can't open file '$OutputDir/FilePath.txt'\n";
+while (my $line = <$FILE_SWID_PATH_TWO_FH>) {
+        my @fields = split ("\t", $line);
+       	print $FILE_PATH_FH "$fields[0]\n";
+}
+
+close ($FILE_PATH_FH);
+close ($FILE_SWID_PATH_TWO_FH);
 
 print "Files created.\n";
 
@@ -97,12 +111,7 @@ if (-z "$RawIndex") {
 }
 
 # Ensure that Files.Input exists before using it 
-while (  ) {
-	if ( -e $MD5File ) {
-		last;
-	}
-	sleep(2); # Wait 2 seconds
-} 
+sleep(1) while not -e $MD5File;
 
 # Once above is run, should have a file in CWD/output called Files.Index
 `cp "$MD5File" "$copyMD5File"`; # Copy MD5 File so that I can alter it without changing the original

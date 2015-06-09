@@ -43,16 +43,12 @@ my $InputFile = $ARGV[1];
 chomp( $InputFile );
 $InputFile = abs_path( $InputFile );
 
-# Set up database information 
-# ***Make sure this is correct***
-my $dbname = "seqware_meta_db_1_1_0_150429";
-my $hostname = "hsqwstage-www2.hpc";
-my $dsn = "dbi:Pg:dbname=$dbname;host=$hostname";
-my $user = "hsqwstage2_rw";
-my $password = "";
-
 # Connect to database
-my $dbh = DBI->connect($dsn, $user, $password, { AutoCommit => 1 }) or die "Can't connect to the database: $DBI::errstr\n";
+my $path = `pwd`;
+chomp($path);
+$ENV{PGSYSCONFDIR} = $path;
+
+my $dbh = DBI->connect("dbi:Pg:service=test", undef, undef, { AutoCommit => 1}) or die "Can't connect to the database: $DBI::errstr\n";
 
 # Get project name
 my $Project = $ARGV[0];
@@ -70,7 +66,7 @@ while (my @row = $sth->fetchrow_array) {
 
 # Call SGECaller
 print "Calculating MD5sums and file sizes for files in the given directory...\n";
-`./SGECaller.pl "$InputFile"`;
+`./SGECaller.pl "$InputFile" nonseqware`;
 
 my $MD5File = $MD5OutputDir . "/Files.Index";
 my $RawIndex = $MD5OutputDir . "/rawindex.fil";
@@ -82,12 +78,7 @@ if ( -z "$RawIndex") {
 
 
 # Ensure that Files.Input exists before using it
-while (  ) {
-        if ( -e "$MD5File" ) {
-                last;
-        }
-        sleep(2); # Wait 2 seconds
-}
+sleep 2 while not -e "$MD5File";
 
 # Open File.Input
 open my $MD5_FILE_FH, '<', $MD5File or die "Can't open file '$MD5File'\n";

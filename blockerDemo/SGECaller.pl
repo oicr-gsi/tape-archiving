@@ -250,21 +250,43 @@ my $DEFBLOCK_SIZE = 4;		#Number of jobs per grid job.
 
 my $BlockSize = $DEFBLOCK_SIZE;	#Likely code will change this value
 
-my $InputPath = shift @ARGV;	#A way to direct the input program elsewhere: 
+my $Length = @ARGV;
 
+my $InputPath = shift @ARGV;	#A way to direct the input program elsewhere: 
+my $Type = "";
+
+if ($Length == 2){
+	$Type = shift @ARGV;
+}
 unless (defined $InputPath) {	$InputPath  = "./testDir";	}	
 
 unless (-e $InputPath)	{	die "Cannot find input location: '$InputPath'\n";	}
 
-# Set up database information
-my $dbname = "seqware_meta_db_1_1_0_150429";
-my $hostname = "hsqwstage-www2.hpc";
-my $dsn = "dbi:Pg:dbname=$dbname;host=$hostname";
-my $user = "hsqwstage2_rw";
-my $password = "";
-
 # Connect to database
-my $dbh = DBI->connect($dsn, $user, $password, { AutoCommit => 1 }) or die "Can't connect to the database: $DBI::errstr\n";
+my $path = `pwd`;
+chomp($path);
+$ENV{PGSYSCONFDIR} = $path;
+
+my $dbh = DBI->connect("dbi:Pg:service=test", undef, undef, { AutoCommit => 1}) or die "Can't connect to the database: $DBI::errstr\n";
+
+#Abs path everything possible:
+$InputPath = File::Spec ->rel2abs ($InputPath);
+ 
+if (-e $OutputDir)      {       remove_tree ($OutputDir);       }   
+
+#Make the output directory:
+print "# Building Output Directory: '$OutputDir'\n";
+make_path ($OutputDir) or die "$@";
+
+#Make the log directory:
+my $LogDir = "$OutputDir/logs";
+
+if (-e  $LogDir)        {       remove_tree ($LogDir);  }
+make_path ($LogDir);
+
+unless (-e  $LogDir)    {       die "Cannot create log directory: '$LogDir'\n"; }
+
+print "D: log directory: '$LogDir'\n";
 
 =head2 Get the runner script off disk where it is easier to edit:
 
@@ -298,25 +320,6 @@ close ($COLLECTOR_fh);
 =head2 (re)create the output & log directory
 
 =cut
-
-#Abs path everything possible:
-$InputPath = File::Spec ->rel2abs ($InputPath);
- 
-if (-e $OutputDir)	{	remove_tree ($OutputDir);	}
-
-#Make the output directory:
-print "# Building Output Directory: '$OutputDir'\n";
-make_path ($OutputDir) or die "$@";
-
-#Make the log directory:
-my $LogDir = "$OutputDir/logs";
-
-if (-e  $LogDir)	{	remove_tree ($LogDir);	}
-make_path ($LogDir);
-
-unless (-e  $LogDir)	{	die "Cannot create log directory: '$LogDir'\n";	}
-
-print "D: log directory: '$LogDir'\n";
 
 =head2 Pull a list of files - and detect the failures:
 
@@ -367,44 +370,46 @@ Essentially:
 
 =cut
 
-# Remove files from rawIndex.file that have not been modified since 
-my $RawIndexFileTemp = "$OutputDir/rawindex.fil.temp";
+# Remove files from rawIndex.file that have not been modified since ------------------------------------------------------------------
+if ($Type eq "nonseqware") {
+	my $RawIndexFileTemp = "$OutputDir/rawindex.fil.temp";
 
-open my $RAW_INDEX_FILE_FH, "<", $RawIndexFile or die "Cannot open raw index file '$RawIndexFile'\n";
-open my $RAW_INDEX_FILE_FH_TEMP, ">", $RawIndexFileTemp or die "Cannot write raw index file temp '$RawIndexFileTemp'\n";
+	open my $RAW_INDEX_FILE_FH, "<", $RawIndexFile or die "Cannot open raw index file '$RawIndexFile'\n";
+	open my $RAW_INDEX_FILE_FH_TEMP, ">", $RawIndexFileTemp or die "Cannot write raw index file temp '$RawIndexFileTemp'\n";
 
-my $RunTimeDate = `date +"%F %T"`;
+	my $RunTimeDate = `date +"%F %T"`;
 
-while (<$RAW_INDEX_FILE_FH>) {
-	chomp();
-	my ($FilePath) = $_;
-	my $LastModifiedTime = `stat -c %Z $FilePath 2>/dev/null`;
+	while (<$RAW_INDEX_FILE_FH>) {
+		chomp();
+		my ($FilePath) = $_;
+		my $LastModifiedTime = `stat -c %Z $FilePath 2>/dev/null`;
 	
-	my $Count = $dbh->selectrow_array('SELECT count(*) FROM md5_size_last_run WHERE FILE_PATH = ?', undef, $FilePath);
+		my $Count = $dbh->selectrow_array('SELECT count(*) FROM md5_size_last_run WHERE FILE_PATH = ?', undef, $FilePath);
 	
-	if ($Count > 0) { # If file exists in DB
-		my $sql = 'SELECT last_run FROM md5_size_last_run WHERE FILE_PATH = ?';
-		my $sth = $dbh->prepare($sql);
-		$sth->execute($FilePath);
-		while (my @row = $sth->fetchrow_array) {
-			my $LastRunEpoch = `date -d "$row[0]" '+%s'`;
-			if ($LastRunEpoch < $LastModifiedTime) {
-				print $RAW_INDEX_FILE_FH_TEMP "$_\n";
-				$dbh->do('UPDATE md5_size_last_run SET last_run = ? WHERE file_path = ?', undef, $RunTimeDate, $FilePath);
+		if ($Count > 0) { # If file exists in DB
+			my $sql = 'SELECT last_run FROM md5_size_last_run WHERE FILE_PATH = ?';
+			my $sth = $dbh->prepare($sql);
+			$sth->execute($FilePath);
+			while (my @row = $sth->fetchrow_array) {
+				my $LastRunEpoch = `date -d "$row[0]" '+%s'`;
+				if ($LastRunEpoch < $LastModifiedTime) {
+					print $RAW_INDEX_FILE_FH_TEMP "$_\n";
+					$dbh->do('UPDATE md5_size_last_run SET last_run = ? WHERE file_path = ?', undef, $RunTimeDate, $FilePath);
+				}
 			}
+		} else { # If file does not exist in DB
+			print $RAW_INDEX_FILE_FH_TEMP "$_\n";
+			$dbh->do('INSERT INTO md5_size_last_run (file_path, last_run) VALUES (?,?)', undef, $FilePath, $RunTimeDate);
 		}
-	} else { # If file does not exist in DB
-		print $RAW_INDEX_FILE_FH_TEMP "$_\n";
-		$dbh->do('INSERT INTO md5_size_last_run (file_path, last_run) VALUES (?,?)', undef, $FilePath, $RunTimeDate);
 	}
+
+	close ($RAW_INDEX_FILE_FH_TEMP);
+	close ($RAW_INDEX_FILE_FH);
+
+	`cat $RawIndexFileTemp > $RawIndexFile`;
+	`rm $RawIndexFileTemp`;
 }
-
-close ($RAW_INDEX_FILE_FH_TEMP);
-close ($RAW_INDEX_FILE_FH);
-
-`cat $RawIndexFileTemp > $RawIndexFile`;
-`rm $RawIndexFileTemp`;
-
+# ---------------------------------------------------------------------------------------------------------------------------------------
 # Disconnect from database
 $dbh->disconnect;
 

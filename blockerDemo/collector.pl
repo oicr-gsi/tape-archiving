@@ -158,11 +158,12 @@ Hence the order of the fields:
 		my $IndexFile = "Indx_$Block.tab.tmp";
 		if (-e $IndexFile)	#If the index file does exist then...there is something strange going on - but beyond us to fix it.
 			{
-			my $DoneCommand= "cut -f1 $IndexFile | grep -v -- '\-\-' | wc -l"; #"cut -f1 $IndexFile | grep -v \"\\-\\-\" | wc -l";
+			my $DoneCommand= "cut -f1 $IndexFile | grep -v -- '\-\\{2\\}' | wc -l";
 	#		print "D: Done Command: '$DoneCommand'\n"; 
-			my $RunCommand = "cut -f1 $IndexFile | grep -v -- '\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-' | wc -l";
+			my $RunCommand = "cut -f1 $IndexFile | grep -v -- '\-\\{32\\}' | wc -l";
+
 			$DoneCount = `$DoneCommand`;	#Anything with an MD5 won't have a two "--" next to each other		
-			my $RunCount = `$RunCommand`;
+			my $RunCount = `$RunCommand`; # Count of how many attempts at MD5Sum calculation are made, not just how many succeed
 			chomp($RunCount);
 			#Strip off the new lines:			
 			chomp ($DoneCount); chomp ($TotalCount);
