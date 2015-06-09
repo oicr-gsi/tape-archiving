@@ -4,6 +4,9 @@
 
  When pointed at a directory checks for a series of files including the 'APPROVED_TO_WRITE' one that is 
  the hallmark of 'checker.pl' program.
+
+ launcher.pl [Dir to Send] --SubclientName MyBackup [--clobber and other options]
+
  Essentially it tries to produce commands such as this:
 
  qsub -q backups -N SomeCreativeName -S /bin/bash -b y "qscript_ndmp archive JellyBeansCureCancer /.mounts/labs/prod/backups/production/JellyBeans/experiment101"
@@ -32,6 +35,7 @@ use File::Path qw(make_path remove_tree); # Manipulate paths 2
 use File::Spec;				  # Manipulate paths 3
 use Cwd 'abs_path';			  # Recurse paths back to their 'source'
 use Getopt::Long;			  # To process the switches / options:
+use FindBin qw($Bin);
 
 use strict;
 
@@ -49,6 +53,7 @@ my $Clobber	        = 0;		# Can we overwrite output?
 my $SkipSGECheck        = 0;	        # Allow no SGE - we can't launch anything
 my $TStamp_Human        = timestamp(); 
 my $timestamp           = time;	        # Two versions of the timestamp 
+my $ifsPath             = "";
 #my $GENERAL_INDEX_DEFAULT = "/tickets/tapeArchiveSPB_2983/mainIndex";
 
 GetOptions (
@@ -92,9 +97,18 @@ if ($SkipSGECheck ==0)
 
 
 my $PathToArchive = shift @ARGV;
+
 #A very simple check:
 unless (defined $PathToArchive)
 	{usage ("Need a directory to archive!\n");}
+
+#Make sure we have a valid Path
+if ($PathToArchive =~m!/.mount!) {
+    $ifsPath = $PathToArchive;
+    $ifsPath =~s!/.mounts!/ifs!;
+} else {
+    die "Path to Archive needs to start with /.mount, otherwise this CLI won't work!";
+}
 
 #We work in ABS paths:
 $PathToArchive = File::Spec->rel2abs($PathToArchive);
@@ -148,10 +162,15 @@ $SubclientLocationIndexPath = $MasterIndexLocation."/".$SubclientName;
 print "#: Index path is: $SubclientLocationIndexPath\n";
  
  
-if (-e $SubclientLocationIndexPath && $Clobber == 0)	
-	{#According to Brian this is a show-stopper: subclient names must be unique.
-	die "Subclient directory already exists - jobs must be unique names; use --clobber to override\n";
-	}
+if (-e $SubclientLocationIndexPath) {
+   if ( $Clobber == 0) { 
+    #According to Brian this is a show-stopper: subclient names must be unique.
+    die "Subclient directory already exists - jobs must be unique names; use --clobber to override\n";
+    } else {
+     remove_tree($SubclientLocationIndexPath);
+    }
+} 
+
 #Ok, create the path:
 make_path ($SubclientLocationIndexPath) or die "Cannot create: '$SubclientLocationIndexPath' (place for the index ultimately)\n";
 
@@ -183,18 +202,30 @@ $PathToArchive =~ s/ /\\ /g;
 my $JobName ="GI_LNC_$timestamp";
 #Also we need to construct the STDOUT+ STDERR files 
 
-my $STDOUTFile = "$SubclientLocationIndexPath/STDOUT.txt";
-my $STDERRFile = "$SubclientLocationIndexPath/STDERR.txt";
 
-my $QSubMainCommand = "qsub -q backups -N $JobName -S /bin/bash ".
+my $STDOUTFile = "$JobName.o"; 
+my $STDERRFile = "$JobName.e";
+my $LOGFILE    = "$SubclientLocationIndexPath/$JobName.log";
+
+# Touch files, it seems to be needed
+`touch $STDOUTFile $STDERRFile`;
+
+my $QSubMainCommand = "qsub -cwd -q backups -N $JobName -S /bin/bash ".
 	              "-o $STDOUTFile -e $STDERRFile".
-	              " -b y \"qscript_ndmp archive $SubclientName $PathToArchive\""; 
+	              " -b y \"qscript_ndmp archive $SubclientName $ifsPath\""; # >>$STDOUTFile\""; 
 
 print "#: Launcher Qsub Command = '$QSubMainCommand'\n";
 
 # Launch, actually
 
-`$QSubMainCommand`;
+my $log_messages = `$QSubMainCommand`;
+if ($log_messages) {
+   open(LOG,">$LOGFILE") or die "Cannot write to logfile";
+   print LOG $log_messages;
+   print LOG "STDOUT:$Bin/$STDOUTFile\n";
+   print LOG "STDERR:$Bin/$STDERRFile\n";
+   close LOG;
+}
 
 =head2 Now build the 'waiter' command: 
 

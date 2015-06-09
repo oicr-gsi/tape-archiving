@@ -209,7 +209,8 @@ while (<INPUTFILE>)
 #Below here only processed for wanted lines:
         chomp;               #Strip new lines off 
         s/ /\\ /g; #Escape spaces in file names
-        s/([)(}{|%@\$])/\\$1/g; # Escape special characters
+        s/([;<>)(}{|%@?\$])/\\$1/g; # Escape special characters
+
         my ($Input, $Output) =  split (/\t/,$_);
 #       print "D: $Input ---> $Output\n";
         push @LinesToProcess, [$Input,$Output];
@@ -246,9 +247,9 @@ my $OutputGpgFile       = "GPGTALLY_TAG";
 
  #Escape spaces and special characters
  $WDir=~s/ /\\ /g; #Escape spaces in file names
- $WDir=~s/([}{%@])/\\$1/g; # Escape special characters
+ $WDir=~s/([;<>)(}{|%@?\$])/\\$1/g; # Escape special characters
  $OutputGpgFile=~s/ /\\ /g; #Escape spaces in file names
- $OutputGpgFile=~s/([}{%@])/\\$1/g; # Escape special characters
+ $OutputGpgFile=~s/([;<>)(}{|%@?\$])/\\$1/g; # Escape special characters
 
  # Really, really simple
  my $CheckerCommand = "find $WDir -type f > $OutputGpgFile 2>/dev/null";
