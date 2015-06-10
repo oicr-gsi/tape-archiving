@@ -10,7 +10,7 @@
 # Example:
 # ./seqWareMD5Updater.pl /files/fpr-2015-05-15.txt
 
-# Last Modified: June 8, 2015 by Andrew Duncan
+# Last Modified: June 10, 2015 by Andrew Duncan
 
 use strict;
 use warnings;
@@ -138,7 +138,7 @@ while ( my $LineA = <$MD5_FILE_FH> ) { # MD5_PATH_SIZE
 		if ( $PathA eq $PathB ) {
 			# Update SQL table with MD5 and file size
 			my $Count = $dbh->selectrow_array('SELECT count(*) FROM file WHERE FILE_PATH = ?', undef, $PathA); 
-			if ($Count == 1) {
+			if ($Count >= 1) {
 				$dbh->do('UPDATE file SET size = ?, md5sum = ? WHERE sw_accession = ?', undef, $Size, $MD5, $SWID);
 			} else {
 				print STDERR "Could not find file $PathA in database.\n";

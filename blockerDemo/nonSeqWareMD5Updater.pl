@@ -12,7 +12,7 @@
 # Project is lungcancer
 # ./nonSeqWareMD5Updater.pl lungcancer ./lungcancer
 
-# Last Modified: June 3, 2015 by Andrew Duncan
+# Last Modified: June 9, 2015 by Andrew Duncan
 
 use strict;
 use warnings;
