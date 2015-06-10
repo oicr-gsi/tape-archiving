@@ -234,6 +234,8 @@ use File::Path qw(make_path remove_tree);	#Manipulate paths 2
 use File::Spec;								#Manipulate paths 3
 use Cwd 'abs_path';						#Recurse paths back to their 'source'
 use File::Temp qw/ tempfile tempdir /;
+use DBI;
+use Time::Local;
 
 #The constants / programmable servicable parts:
 
@@ -248,13 +250,43 @@ my $DEFBLOCK_SIZE = 4;		#Number of jobs per grid job.
 
 my $BlockSize = $DEFBLOCK_SIZE;	#Likely code will change this value
 
-
+my $Length = @ARGV;
 
 my $InputPath = shift @ARGV;	#A way to direct the input program elsewhere: 
+my $Type = "";
 
+if ($Length == 2){
+	$Type = shift @ARGV;
+}
 unless (defined $InputPath) {	$InputPath  = "./testDir";	}	
 
 unless (-e $InputPath)	{	die "Cannot find input location: '$InputPath'\n";	}
+
+# Connect to database
+my $path = `pwd`;
+chomp($path);
+$ENV{PGSYSCONFDIR} = $path;
+
+my $dbh = DBI->connect("dbi:Pg:service=test", undef, undef, { AutoCommit => 1}) or die "Can't connect to the database: $DBI::errstr\n";
+
+#Abs path everything possible:
+$InputPath = File::Spec ->rel2abs ($InputPath);
+ 
+if (-e $OutputDir)      {       remove_tree ($OutputDir);       }   
+
+#Make the output directory:
+print "# Building Output Directory: '$OutputDir'\n";
+make_path ($OutputDir) or die "$@";
+
+#Make the log directory:
+my $LogDir = "$OutputDir/logs";
+
+if (-e  $LogDir)        {       remove_tree ($LogDir);  }
+make_path ($LogDir);
+
+unless (-e  $LogDir)    {       die "Cannot create log directory: '$LogDir'\n"; }
+
+print "D: log directory: '$LogDir'\n";
 
 =head2 Get the runner script off disk where it is easier to edit:
 
@@ -289,25 +321,6 @@ close ($COLLECTOR_fh);
 
 =cut
 
-#Abs path everything possible:
-$InputPath = File::Spec ->rel2abs ($InputPath);
- 
-if (-e $OutputDir)	{	remove_tree ($OutputDir);	}
-
-#Make the output directory:
-print "# Building Output Directory: '$OutputDir'\n";
-make_path ($OutputDir) or die "$@";
-
-#Make the log directory:
-my $LogDir = "$OutputDir/logs";
-
-if (-e  $LogDir)	{	remove_tree ($LogDir);	}
-make_path ($LogDir);
-
-unless (-e  $LogDir)	{	die "Cannot create log directory: '$LogDir'\n";	}
-
-print "D: log directory: '$LogDir'\n";
-
 =head2 Pull a list of files - and detect the failures:
 
 Now get a list of files to use and write these to a list: (deliberately not a .tab so we can use bash to iterate across *.tab)
@@ -331,7 +344,7 @@ print "#: Any errors from find will be written to: '$SearchErrorFile'\n";
 
 # Check if given argument is a directory or a file, and act accordingly.
 if (-d $InputPath){
-	`find -L $InputPath -type f -size +1c 2> $SearchErrorFile > $RawIndexFile`;
+	`find -L $InputPath -type f -size +1c -print 2> $SearchErrorFile > $RawIndexFile`;
 } elsif (-f $InputPath) {
 	`cat $InputPath > $RawIndexFile`;
 }
@@ -357,39 +370,49 @@ Essentially:
 
 =cut
 
-# Remove files from rawIndex.file that have not been modified since 
-# Grab the Time of the last run of this script
-my $TmstmpFile = "$OutputDir/../tmstmp.txt";
-my $TimeVal = 0;
-
-if (-e $TmstmpFile) {
-	$TimeVal = -M $TmstmpFile; # Days since file was last updated (when script was run last)
-
-	# Iterate through rawIndex.file, only keep lines for corresponding files which have been updated since last run of this script
+# Remove files from rawIndex.file that have not been modified since ------------------------------------------------------------------
+if ($Type eq "nonseqware") {
 	my $RawIndexFileTemp = "$OutputDir/rawindex.fil.temp";
-	
+
 	open my $RAW_INDEX_FILE_FH, "<", $RawIndexFile or die "Cannot open raw index file '$RawIndexFile'\n";
 	open my $RAW_INDEX_FILE_FH_TEMP, ">", $RawIndexFileTemp or die "Cannot write raw index file temp '$RawIndexFileTemp'\n";
-	
-	my $FileModifiedDate = "";  # Days since file in question was last modified
-	
+
+	my $RunTimeDate = `date +"%F %T"`;
+
 	while (<$RAW_INDEX_FILE_FH>) {
 		chomp();
-		my ($FilePath) = abs_path ($_);
-		$FileModifiedDate = -M $FilePath;
-		if ($TimeVal > $FileModifiedDate) {
+		my ($FilePath) = $_;
+		my $LastModifiedTime = `stat -c %Z $FilePath 2>/dev/null`;
+	
+		my $Count = $dbh->selectrow_array('SELECT count(*) FROM md5_size_last_run WHERE FILE_PATH = ?', undef, $FilePath);
+	
+		if ($Count > 0) { # If file exists in DB
+			my $sql = 'SELECT last_run FROM md5_size_last_run WHERE FILE_PATH = ?';
+			my $sth = $dbh->prepare($sql);
+			$sth->execute($FilePath);
+			while (my @row = $sth->fetchrow_array) {
+				my $LastRunEpoch = `date -d "$row[0]" '+%s'`;
+				if ($LastRunEpoch < $LastModifiedTime) {
+					print $RAW_INDEX_FILE_FH_TEMP "$_\n";
+					$dbh->do('UPDATE md5_size_last_run SET last_run = ? WHERE file_path = ?', undef, $RunTimeDate, $FilePath);
+				}
+			}
+		} else { # If file does not exist in DB
 			print $RAW_INDEX_FILE_FH_TEMP "$_\n";
+			$dbh->do('INSERT INTO md5_size_last_run (file_path, last_run) VALUES (?,?)', undef, $FilePath, $RunTimeDate);
 		}
-	
 	}
-	
+
 	close ($RAW_INDEX_FILE_FH_TEMP);
 	close ($RAW_INDEX_FILE_FH);
 
-	# Update the rawIndex.file with the actual files to process
 	`cat $RawIndexFileTemp > $RawIndexFile`;
 	`rm $RawIndexFileTemp`;
 }
+# ---------------------------------------------------------------------------------------------------------------------------------------
+# Disconnect from database
+$dbh->disconnect;
+
 #Just ask bash & wc:
 my $N_Files_wcresult= `wc -l $RawIndexFile`;
 if ($N_Files_wcresult == 0){ # Will just exit the script if no files are to be worked on (due to empty dir or no newly modified files)
@@ -460,7 +483,7 @@ while (<$RAW_INDEXFILE_FH>)
 	#print "D: $Counter\t$C_Block\t$Tally\t$_\n";	
 	
 	 
-	my ($PathName) = abs_path ($_);	#The only thing on the line is the path (full or otherwise we don't care at this point)	
+	my ($PathName) = $_; #abs_path ($_);	#The only thing on the line is the path (full or otherwise we don't care at this point)	
 	#Build the new output line:
 	my $Line=	"-"x32 .
 				"\t".
@@ -568,7 +591,7 @@ foreach my $C_Block (1..$NBlocks)
  
 my $SGE_Present =0;
 
-if (`qstat -l sbpcrypto 2>&1` =~ m/error:/)
+if (`qstat 2>&1` =~ m/error:/) # -l sbpcrypto
 	{	print "FAILED: qstat (no access to SGE queues?)\n";	}
 	else
 	{	print "# PASSED: qstat (I have access to SGE queue)\n"; $SGE_Present =1;}
@@ -583,7 +606,7 @@ foreach my $C_Block (1..$NBlocks)
 	$ThisBlockScriptFileName =~ s/XXX/$C_Block/;
 	print "Launching job: '$C_Block' = $ThisBlockScriptFileName\n";	
 	
-	my $SGECommand = "qsub -q spbcrypto $ThisBlockScriptFileName";
+	my $SGECommand = "qsub $ThisBlockScriptFileName"; # -q spbcrypto
 	#print "D: $SGECommand\n";
 	push @SGELaunchCMD_s, $SGECommand;
 	}
@@ -604,7 +627,7 @@ close $CollectorOP_FH;
 my $CollectorLaunchResult = "";
 print "#: Wrote out collector script: '$CollectorScriptFileName'\n";
 if ($SGE_Present ==1)
-	{	$CollectorLaunchResult = `qsub -q spbcrypto $CollectorScriptFileName`; } # Launch the QSub Command
+	{	$CollectorLaunchResult = `qsub $CollectorScriptFileName`; } # Launch the QSub Command, -q spbcrypto
 else
 	{	$CollectorLaunchResult = "No SGE Detected, hence won't / can't launch the collector script\n";	}
 chomp ($CollectorLaunchResult); 
@@ -628,10 +651,11 @@ Initially we are parsing lines such as this for the job ID:
 =cut
 #Open the JobRecord.tab file:
 	my $JobRecordFile = "$OutputDir/JobRecord.tab";
-	open my $JobRecord_FH, ">", "$JobRecordFile" or die "Cannot open '$JobRecordFile'\n";
+	#open my $JobRecord_FH, ">", "$JobRecordFile" or die "Cannot open '$JobRecordFile'\n";
 	my $GenericJobName = "IndMD5R\_$StartTime"; #This is the base of the job names we will be monitoring; though the collector uses formal IDs
-	print $JobRecord_FH "#JobName=\t$GenericJobName\n";	#The job name; so we can filter by it...if needed
-
+	#print $JobRecord_FH "#JobName=\t$GenericJobName\n";	#The job name; so we can filter by it...if needed
+	my @JobTabArray;
+	push @JobTabArray, "#JobName=\t$GenericJobName\n";
 	if ($SGE_Present ==1)
 		{
 		#Open the 'Job Record file' to store the job IDs we launch
@@ -648,16 +672,22 @@ Initially we are parsing lines such as this for the job ID:
 			my ($JobID) = $SGEResult =~ m/Your job (\d+?) \(/;
 			$JobID ||= 0;	#Set a default of zero if we couldn't parse it for whatever reason:	
 	
-			print $JobRecord_FH join ("\t", $C_Block, $JobID, "R", 0, $BlockCounts{$C_Block}), "\n";
+			#print $JobRecord_FH join ("\t", $C_Block, $JobID, "R", 0, $BlockCounts{$C_Block}), "\n";
+			push @JobTabArray, join ("\t", $C_Block, $JobID, "R", 0, $BlockCounts{$C_Block}), "\n";
 			$C_Block ++;	#Increment the block counter
 			}
-		print $JobRecord_FH "RUNNING\n";	#put in this initial marker
+		push @JobTabArray, "RUNNING\n";
+		#print $JobRecord_FH "RUNNING\n";	#put in this initial marker
 		
 		}
 #	print "D: Terminating after the first launch until demostration complete\n";	last;
 	 
 	else
 		{	print "No SGE Detected, hence can't launch.\n";	
-			print $JobRecord_FH "FINISHED_WITH_ERRORS\n";	#put in this initial marker; as we aren't launching jobs we can't change this.
+#			print $JobRecord_FH "FINISHED_WITH_ERRORS\n";	#put in this initial marker; as we aren't launching jobs we can't change this.
 		}
+	
+	open my $JobRecord_FH, ">", "$JobRecordFile" or die "Cannot open '$JobRecordFile'\n";
+	print $JobRecord_FH @JobTabArray;
 	close $JobRecord_FH;
+
