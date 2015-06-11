@@ -27,7 +27,6 @@
  module load perl/5.20.1
  module load spb-perl-pipe/dev
 
-
 =cut 
 
 use File::Basename;			  # Manipulate paths 1
@@ -99,8 +98,7 @@ if ($SkipSGECheck ==0)
 my $PathToArchive = shift @ARGV;
 
 #A very simple check:
-unless (defined $PathToArchive)
-	{usage ("Need a directory to archive!\n");}
+unless (defined $PathToArchive) {usage ("Need a directory to archive!\n");}
 
 #Make sure we have a valid Path
 if ($PathToArchive =~m!/.mount!) {
@@ -147,7 +145,7 @@ my $JobIndexLocation = "";
 unless (defined $SubclientName && $SubclientName ne "")
 	{
 #	print "D: '$PathToArchive'\n";
-	#This is not the best regex, but it works
+#This is not the best regex, but it works
 	($SubclientName) = $PathToArchive =~ m/\/([^\/.]+)$/;
 	print "#: Setting default subclient name: '$SubclientName'\n";	
 	}
@@ -202,7 +200,6 @@ $PathToArchive =~ s/ /\\ /g;
 my $JobName ="GI_LNC_$timestamp";
 #Also we need to construct the STDOUT+ STDERR files 
 
-
 my $STDOUTFile = "$JobName.o"; 
 my $STDERRFile = "$JobName.e";
 my $LOGFILE    = "$SubclientLocationIndexPath/$JobName.log";
@@ -212,7 +209,7 @@ my $LOGFILE    = "$SubclientLocationIndexPath/$JobName.log";
 
 my $QSubMainCommand = "qsub -cwd -q backups -N $JobName -S /bin/bash ".
 	              "-o $STDOUTFile -e $STDERRFile".
-	              " -b y \"qscript_ndmp archive $SubclientName $ifsPath\""; # >>$STDOUTFile\""; 
+	              " -b y \"qscript_ndmp archive $SubclientName $ifsPath >>$STDOUTFile\""; 
 
 print "#: Launcher Qsub Command = '$QSubMainCommand'\n";
 
@@ -243,7 +240,6 @@ if ($log_messages) {
 
  Media: 006767
  006986
-
 
 
  ##############################################
