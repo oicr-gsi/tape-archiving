@@ -96,6 +96,11 @@ while (<$INDEXFILE_FH>)  #run through instructions file
 #		print "D: Backup Length = '$BackupLength'\n";
 		seek($INDEXFILE_FH, -$BackupLength,  1) or die "Could not reset filepointer!\n";
 #		print "D: Path to file: '$Path'\n";
+		my $OldPath = $Path; # Path without any escape characters
+		$Path  =~ s/([^a-zA-Z0-9_])/\\$1/g; # Escape characters so that they work with BASH
+		if ( $Size > 53687091200) { # If file is larger than 50GB, you will have to calculate MD5 manually
+			printLineToFile ($INDEXFILE_FH,$_,"Too-Large");                 next;   #Process next line (if present)
+		}
 		my $MD5Result = `md5sum $Path`;
 #		`touch $IndexFile`;
 						#Try to get a lock:
@@ -103,11 +108,11 @@ while (<$INDEXFILE_FH>)  #run through instructions file
 		
 #		print "D: '$_'\n";
 		# Does the file exist?
-		unless (-e $Path)
+		unless (-e $OldPath)
 			{
 			printLineToFile ($INDEXFILE_FH,$_,"Not-Found");			next;	#Process next line (if present)		
 			}
-		unless (-r $Path)
+		unless (-r $OldPath)
 			{
 			printLineToFile ($INDEXFILE_FH,$_,"Not-Readable");			next;	#Process next line (if present)		
 			}
