@@ -222,7 +222,7 @@ foreach my $I_File (@LinesToProcess)
         my ($In, $Out) = ($$I_File[0], $$I_File[1]);    #I.e. first (0th) is the filename, second is it's encrypted version
 #Issue MD5 request (& do reality checks):
                 # This should be done not too many times in one job, given 100 nodes we may have up to 
-                `gpg --trust-model always --no-random-seed-file KEYS_TAG -o "$Out" -e "$In"`;
+                `gpg --trust-model always --no-random-seed-file KEYS_TAG -o $Out -e $In`;
         }        
 
 END_SCRIPT
