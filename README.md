@@ -73,25 +73,35 @@ Basic usage: ./launcher.pl /path/to/work/dir/
 
 ### Data Removal Procedure
 
-1. Choose a project from http://www-pde.hpc.oicr.on.ca/html/backup.tracker/eol/ that has a tape ID and has files 'present'
-2. Compare the size of the **encrypted** directory to the size in CommVault. The size in CommVault will usually be usually be smaller due to compression. To find the size in Commvault:
+1. Choose a project from the [Backup Tracker](http://www-pde.hpc.oicr.on.ca/html/backup.tracker/eol/) that has a tape ID and has files 'present'
+2. Compare the size of the **encrypted** directory to the size in [CommVault](http://cserve.ad.oicr.on.ca/console/). The size in CommVault will usually be usually be smaller due to compression. To find the size in Commvault:
     * client computer > backup.isilon.stg.oicr.on.ca > NAS > seqprodbio
     * right-click the backup, choose Browse and Restore
     * click View Content
-3. Find the backups directory (currently /.mounts/labs/PDE/data/tapeBackup/backup_PROJECT) and check the following files:
+3. Find the backups directory (currently **/.mounts/labs/PDE/data/tapeBackup/backup\_PROJECT**) and check the following files:
     * MissingForGPG.lst - should be empty
     * APPROVED\_TO\_WRITE - should exist
     * Check that MD5 files have data in them and no "--" stretches
+    
         eval "head -2 MD5_working/1.md5.*; echo '~~~'; cat MissingForGPG.lst ; echo '~~~'; cat APPROVED_TO_WRITE; echo '~~~';wc -l MD5_working/1.md5.* ;echo '~~~'; find MD5_working/ -type f | xargs grep '--'; " > backup_check
+        
     * Look at the NullFiles to see what's in there
+    
         grep -vE "[oe][0-9]+$|done$|[l|L]og[0-9]*$" index/NullFiles | less
+        
 4. Remove the encrypted directory (using full file paths and triple-checking it's the right one), leaving everything else in the directory
 5. Move the backup_<PROJECT> directory (sans encrypted dir) to a snapshotted location
+
         rsync -r /.mounts/labs/PDE/data/tapeBackup/backup_AdrenocorticalCancer /.mounts/labs/prod/backups/archived/
         rm /.mounts/labs/PDE/data/tapeBackup/backup_AdrenocorticalCancer
         ln -s /.mounts/labs/prod/backups/archived/backup_AdrenocorticalCancer /.mounts/labs/PDE/data/tapeBackup/
+        
 6. Test to see if you can write in the final directory (and therefore delete)
+
         find . -type f | while read i ; do if [ ! -w "$i" ] ; then echo "No write: $i"; fi; done
+        
 7. Remove the directory containing the original files (using full file paths and triple-checking it's the right one), do not follow symlinks
 8. Leave your mark in the backups directory
+
         /.mounts/labs/prod/backups/archived/backup_AdrenocorticalCancer$ date > DATA_REMOVED
+
