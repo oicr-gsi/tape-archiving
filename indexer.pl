@@ -509,7 +509,7 @@ my $CleanerCommand =
 #`$CleanerCommand`;
 
 unless (defined $NFilesInIndex && $NFilesInIndex ne "" && $NFilesInIndex == $NFilesExpected)
-	{	die "File miss-match count; this is bad!\n";	}
+	{	die "File miss-match count; this is bad! $NFilesExpected expected vs. $NFilesInIndex in index.\n";	}
 #If we got to here then:
 	`date > $CompleteFile`;
 	

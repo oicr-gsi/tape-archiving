@@ -710,7 +710,7 @@ For this we call the 'df' tool and ask for the value in bytes,
 =cut 
 if ($MINDISKSPACEFRACTION != 0)
 	{
-	my @DiskSpaceRes = `df $OutputDir`;
+	my @DiskSpaceRes = `df -B1 $OutputDir`;
 	my $DiskSpaceRes = $DiskSpaceRes[-1];
 	my ($DiskSpaceAvailable) = $DiskSpaceRes =~ m/(\d+?) +\d+?\%/;
 	print "D: Diskspace: '$DiskSpaceAvailable'\n";
